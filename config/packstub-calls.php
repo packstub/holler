@@ -1,0 +1,93 @@
+<?php
+
+return [
+
+    /*
+    |--------------------------------------------------------------------------
+    | Guard
+    |--------------------------------------------------------------------------
+    |
+    | The guard that signs people in where calls happen: the signed-in user and
+    | the callee are looked up through it. Leave null for the default guard.
+    | Inside a Filament panel the panel's own guard is used instead.
+    |
+    */
+
+    'guard' => null,
+
+    /*
+    |--------------------------------------------------------------------------
+    | ICE servers
+    |--------------------------------------------------------------------------
+    |
+    | Passed to RTCPeerConnection as is. A STUN server is enough for most
+    | calls: the browsers find each other and the media goes straight between
+    | them. Behind strict NATs or corporate firewalls a direct path fails and
+    | the call needs a TURN relay; set the TURN variables to your own coturn
+    | or a hosted TURN service. The relay only forwards encrypted packets
+    | (DTLS-SRTP), it cannot see or hear the call.
+    |
+    */
+
+    'ice_servers' => array_values(array_filter([
+        ['urls' => env('CALLS_STUN_URL', 'stun:stun.l.google.com:19302')],
+        env('CALLS_TURN_URL') ? [
+            'urls' => env('CALLS_TURN_URL'),
+            'username' => env('CALLS_TURN_USERNAME'),
+            'credential' => env('CALLS_TURN_CREDENTIAL'),
+        ] : null,
+    ])),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Polling
+    |--------------------------------------------------------------------------
+    |
+    | Signaling runs over plain HTTP: every open window asks for incoming
+    | calls every `idle` milliseconds and, while a call rings or runs, for
+    | signals every `active` milliseconds. No websocket server to run.
+    |
+    */
+
+    'poll' => [
+        'idle' => (int) env('CALLS_POLL_IDLE', 5000),
+        'active' => (int) env('CALLS_POLL_ACTIVE', 1000),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Ringing
+    |--------------------------------------------------------------------------
+    |
+    | Seconds a call rings before it is marked missed.
+    |
+    */
+
+    'ring_timeout' => (int) env('CALLS_RING_TIMEOUT', 45),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Reconnecting
+    |--------------------------------------------------------------------------
+    |
+    | A page reload or a dropped network leaves one side silent for a moment;
+    | the call survives it and the other side sees "Reconnecting…". After this
+    | many seconds without that side, the call ends as lost.
+    |
+    */
+
+    'reconnect_timeout' => (int) env('CALLS_RECONNECT_TIMEOUT', 15),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Media
+    |--------------------------------------------------------------------------
+    |
+    | What a call starts with. Either side can still turn the camera off,
+    | mute or share the screen during the call.
+    |
+    */
+
+    'video' => (bool) env('CALLS_VIDEO', true),
+
+];
