@@ -6,9 +6,9 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * One signaling message (offer, answer, ICE candidate, or a reset: "I have a
- * new connection, build one for it") on its way to the
- * other side of a call. Read by id, so a poll with a cursor never misses or
+ * One signaling message on its way to the other side of a call: offer, answer,
+ * ICE candidate, a reset ("I have a new connection, build one for it") or a
+ * state ("I am muted, my camera is off, I share my screen"). Read by id, so a poll with a cursor never misses or
  * repeats one; deleted with the call.
  *
  * @property int $id
@@ -19,7 +19,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class CallSignal extends Model
 {
-    public const TYPES = ['offer', 'answer', 'ice', 'reset'];
+    public const TYPES = ['offer', 'answer', 'ice', 'reset', 'state'];
 
     public $timestamps = false;
 

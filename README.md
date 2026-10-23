@@ -150,7 +150,7 @@ For another browser client, or another backend speaking to `@packstub/calls`:
 | `POST` | `calls/{id}/answer` `{tab}` | callee joins; the call becomes `active` (409 once it stopped ringing) |
 | `POST` | `calls/{id}/decline` | callee says no |
 | `POST` | `calls/{id}/hangup` | either side ends it |
-| `POST` | `calls/{id}/signals` `{type, payload}` | queue an `offer`, `answer`, `ice` or `reset` for the other side (410 after the call ended) |
+| `POST` | `calls/{id}/signals` `{type, payload}` | queue an `offer`, `answer`, `ice`, `reset` or `state` (mute, camera off, screen share) for the other side (410 after the call ended) |
 | `POST` | `calls/{id}/leave` `{tab}` | a beacon as the window unloads: the side is free for the next page |
 | `GET` | `poll?after={cursor}&call={id}&tab={tab}&hold=1` | the call I am in (held by this window when `hold` is set: its heartbeat), an incoming call, and my new signals |
 

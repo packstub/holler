@@ -95,6 +95,18 @@ it('delivers signals in order, only to the other side and only after the callee 
     $this->actingAs($this->ion)->getJson(callsRoute('poll', ['call' => $call->id, 'tab' => 'tab', 'hold' => 1]))->assertJsonPath('signals.0.type', 'answer');
 });
 
+it('relays a state signal (mute, camera, screen share) like any other', function (): void {
+    $call = ring($this->ion, $this->ana);
+    $this->actingAs($this->ana)->postJson(callsRoute('answer', ['call' => $call]), ['tab' => 'ana-tab'])->assertOk();
+
+    $this->actingAs($this->ion)->postJson(callsRoute('signal', ['call' => $call]), ['type' => 'state', 'payload' => ['muted' => true, 'cameraOff' => false, 'sharing' => false, 'session' => 's1']])->assertCreated();
+
+    $this->actingAs($this->ana)->getJson(callsRoute('poll', ['call' => $call->id, 'tab' => 'ana-tab', 'hold' => 1]))
+        ->assertJsonPath('signals.0.type', 'state')
+        ->assertJsonPath('signals.0.payload.muted', true)
+        ->assertJsonPath('signals.0.payload.session', 's1');
+});
+
 it('rejects an unknown signal type and a signal from a bystander', function (): void {
     $call = ring($this->ion, $this->ana);
     $mihai = user('Mihai');
