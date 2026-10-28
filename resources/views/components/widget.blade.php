@@ -17,7 +17,7 @@
     'styles' => true,
     'options' => [],
     'name' => 'calls',
-    'popup' => false,
+    'inPopOut' => false,
 ])
 
 @php
@@ -34,9 +34,9 @@
             'leave' => route($routes.'leave', ['call' => '__ID__']),
             'invite' => route($routes.'invite', ['call' => '__ID__']),
         ],
-        'windowUrl' => $popOut || $popup ? route($routes.'window', ['call' => '__ID__', 'callee' => '__USER__']) : null,
+        'windowUrl' => $popOut || $inPopOut ? route($routes.'window', ['call' => '__ID__', 'callee' => '__USER__']) : null,
         'popOut' => $popOut,
-        'popup' => $popup,
+        'inPopOut' => $inPopOut,
         'csrf' => csrf_token(),
         'iceServers' => $context->iceServers(),
         'iceTransportPolicy' => \Packstub\Calls\Facades\Calls::rtcConfiguration()['iceTransportPolicy'],
