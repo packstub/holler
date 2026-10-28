@@ -19,7 +19,9 @@ use Packstub\Calls\Exceptions\CallFull;
 use Packstub\Calls\Exceptions\CallHasEnded;
 use Packstub\Calls\Exceptions\CallNotAllowed;
 use Packstub\Calls\Exceptions\CallNotRinging;
+use Packstub\Calls\Http\AssetController;
 use Packstub\Calls\Http\CallsController;
+use Packstub\Calls\Http\PopOutController;
 use Packstub\Calls\Models\Call;
 use Packstub\Calls\Models\CallParticipant;
 use Packstub\Calls\Models\CallSignal;
@@ -41,13 +43,14 @@ class Calls
     use Macroable;
 
     /**
-     * Register the eight JSON routes under `{prefix}/`, named `{as}poll`, `{as}store`…
+     * Register the eight JSON routes and the widget's pop-out page under `{prefix}/`, named `{as}poll`, `{as}store`…
      *
      * @param  array<int, string> | string  $middleware
+     * @param  bool  $window  also the widget's pop-out page, `GET {prefix}/window`
      */
-    public function routes(string $prefix = 'calls', array|string $middleware = 'auth', string $as = 'calls.'): void
+    public function routes(string $prefix = 'calls', array|string $middleware = 'auth', string $as = 'calls.', bool $window = true): void
     {
-        Route::prefix($prefix)->name($as)->middleware($middleware)->group(function (): void {
+        Route::prefix($prefix)->name($as)->middleware($middleware)->group(function () use ($window): void {
             Route::get('poll', [CallsController::class, 'poll'])->name('poll');
             Route::post('/', [CallsController::class, 'store'])->name('store');
             Route::post('{call}/answer', [CallsController::class, 'answer'])->name('answer');
@@ -56,7 +59,17 @@ class Calls
             Route::post('{call}/invite', [CallsController::class, 'invite'])->name('invite');
             Route::post('{call}/signals', [CallsController::class, 'signal'])->name('signal');
             Route::post('{call}/leave', [CallsController::class, 'leave'])->name('leave');
+            // The pop-out page of `<x-calls::widget />`; a package with a window of its own passes `window: false`.
+            if ($window) {
+                Route::get('window', PopOutController::class)->name('window');
+            }
         });
+    }
+
+    /** The URL of a file the package serves to the browser: `index.js` (the engine), `widget.js`, `widget.css`. */
+    public function asset(string $file): string
+    {
+        return route('calls.asset', ['file' => $file]).'?v='.AssetController::version($file);
     }
 
     public function context(): CallContext

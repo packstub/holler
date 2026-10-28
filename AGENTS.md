@@ -1,6 +1,6 @@
 # packstub/calls
 
-**Calls for Laravel**: the server side of WebRTC calls (1-on-1 and groups up to `max_participants`, 4 by default) between the users of a Laravel app. Laravel only does signaling (who calls whom; offer, answer, ICE candidates, reset and state relayed through a table) over polled HTTP, no websockets, no media. Free, MIT. `packstub/filament-calls` (the sibling repo, `plugins/filament-calls`) puts it into a Filament panel and requires this package; the browser engine is `@packstub/calls` (`plugins/calls-js`). The two PHP packages share the `Packstub\Calls\` namespace (Composer merges the PSR-4 directories), so class names must not collide across them. Split out of `filament-calls` on 2026-10-23; private repo, untagged.
+**Calls for Laravel**: the server side of WebRTC calls (1-on-1 and groups up to `max_participants`, 4 by default) between the users of a Laravel app. Laravel only does signaling (who calls whom; offer, answer, ICE candidates, reset and state relayed through a table) over polled HTTP, no websockets, no media. Free, MIT. `packstub/filament-calls` (the sibling repo, `plugins/filament-calls`) puts it into a Filament panel and requires this package; the browser engine is `@packstub/calls` (`plugins/calls-js`). `filament-calls` lives in `Packstub\FilamentCalls\`, this package in `Packstub\Calls\` (one PSR-4 root per package). Split out of `filament-calls` on 2026-10-23; private repo, untagged.
 
 ## Commands
 
@@ -28,3 +28,7 @@ composer lint               # Pint
 - The route names (`{as}poll`…), the JSON shapes of `present()` and `poll()`, the signal types and the `CallContext` methods are shared with `filament-calls` and `@packstub/calls` (its `FakeServer` mirrors the rules); they must not change inside a major. Schema changes follow the workspace rule (final shape in `create_*`, guarded `add_*`); the 2026-10-28 move to `call_participants` edited `create_calls_table` in place because nothing was tagged or installed yet.
 - Authorization stays in the service (`start()` asks the context), never only in a controller.
 - After a change here run the Filament package's suite too (`plugins/filament-calls`, `composer test`).
+
+## The widget
+
+`resources/dist/` holds the engine (`index.js`), the widget (`widget.js`) and its stylesheet (`widget.css`), copied from `@packstub/calls` by `npm run build:js` (until the npm package exists, `cp ../calls-js/src/{index.js,widget.js,widget.css} resources/dist/`) and committed, so Composer users need no npm. `AssetController` serves them (`Calls::asset()` adds a version), `<x-calls::widget />` (`resources/views/components/widget.blade.php`) builds the `CallWidget` config and `<x-calls::button />` renders a `data-calls-call` button; the pop-out page is `PopOutController` + `calls::window` (the name `WindowController` is taken by `filament-calls`, in its own namespace since 2026-10-28). The labels in `lang/en/ui.php` mirror `labels` in `widget.js`; keep the two lists the same.

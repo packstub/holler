@@ -4,7 +4,9 @@ namespace Packstub\Calls;
 
 use Illuminate\Foundation\Http\Middleware\TrimStrings;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
 use Packstub\Calls\Contracts\CallContext;
+use Packstub\Calls\Http\AssetController;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
 
@@ -18,6 +20,7 @@ class CallsServiceProvider extends PackageServiceProvider
             ->name(static::$name)
             ->hasConfigFile('packstub-calls')
             ->hasTranslations()
+            ->hasViews()
             ->hasMigration('create_calls_table')
             ->runsMigrations();
     }
@@ -35,6 +38,9 @@ class CallsServiceProvider extends PackageServiceProvider
 
     public function packageBooted(): void
     {
+        // The engine, the widget and its stylesheet, served from the package: nothing to publish or bundle.
+        Route::get('packstub-calls/assets/{file}', AssetController::class)->where('file', '[a-z]+\.(js|css)')->name('calls.asset');
+
         // A session description ends in CRLF and the parser wants it there: no trimming on signals.
         // Matches the default routes (`calls/{id}/signals`) and any prefix that ends in "calls".
         TrimStrings::skipWhen(fn (Request $request): bool => $request->is('*calls/*/signals'));

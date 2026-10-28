@@ -2,7 +2,7 @@
 
 Audio, video and screen-share calls between the users of a Laravel app, one on one or in small groups (up to four by default), peer to peer over WebRTC. The media goes straight from one browser to the other; Laravel only handles who calls whom and relays the few signaling messages the browsers need to find each other. Polling over plain HTTP, so there is no websocket server to run.
 
-This package is the server side: the `calls`, `call_participants` and `call_signals` tables, eight JSON routes, the `Calls` service, a `CallContext` that decides who is who and who may call whom, and three events. The browser side is [`@packstub/calls`](https://github.com/packstub/calls-js), a framework-agnostic ES module. [Filament Calls](https://github.com/packstub/filament-calls) puts both into a Filament panel, with a widget, a `CallAction` and a pop-out window; use that one if your app is a panel.
+This package is the server side (the `calls`, `call_participants` and `call_signals` tables, the JSON routes, the `Calls` service, a `CallContext` that decides who is who and who may call whom, events) plus the two Blade components that put calls on any page: `<x-calls::widget />` and `<x-calls::button />`. The browser side is [`@packstub/calls`](https://github.com/packstub/calls-js), a framework-agnostic engine and widget, served by this package. [Filament Calls](https://github.com/packstub/filament-calls) puts the same engine into a Filament panel, with a `CallAction` and a widget of its own; use that one if your app is a panel.
 
 - `Calls::routes()` registers the signaling endpoints behind your auth middleware.
 - `Calls::start()`, `answer()`, `invite()`, `hangup()`… do the same work without HTTP, for your own endpoints or tests.
@@ -33,41 +33,19 @@ Calls::routes();                                        // /calls/… behind `au
 Calls::routes(prefix: 'team/calls', middleware: ['auth', 'verified'], as: 'team.calls.');
 ```
 
-Then install the browser engine and give it the routes:
+Put the widget in your layout, once, and a button wherever there is someone to call:
 
-```bash
-npm install @packstub/calls
+```blade
+{{-- resources/views/layouts/app.blade.php, before </body> --}}
+<x-calls::widget />
+
+{{-- anywhere a signed-in person can call another --}}
+<x-calls::button :user="$user" />
 ```
 
-```js
-import { CallClient, HttpSignaling } from '@packstub/calls'
+That is the whole setup. The widget draws the incoming-call toast, the call window (a tile per person, your own picture, mute, camera, screen share, hang up) and short notices; the button rings that person, or adds them to the call you are on. Each call opens in a small window of its own, so the page can navigate, reload or close while the call goes on, and shows a chip with the timer meanwhile (`CALLS_POP_OUT=false` keeps the call in the page instead, right for a single-page app). The stylesheet and the ES modules are served by the package: nothing to publish, no bundler.
 
-const client = new CallClient({
-    signaling: new HttpSignaling({
-        routes: {
-            poll: '/calls/poll',
-            store: '/calls',
-            answer: '/calls/__ID__/answer',
-            decline: '/calls/__ID__/decline',
-            hangup: '/calls/__ID__/hangup',
-            signal: '/calls/__ID__/signals',
-            leave: '/calls/__ID__/leave',
-            invite: '/calls/__ID__/invite',
-        },
-        headers: { 'X-CSRF-TOKEN': csrfToken },
-        beaconFields: { _token: csrfToken },
-    }),
-    iceServers: @json(Calls::context()->iceServers()),
-    video: @json(Calls::context()->hasVideo()),
-    poll: @json(config('packstub-calls.poll')),
-    reconnectTimeout: {{ config('packstub-calls.reconnect_timeout') * 1000 }},
-    maxParticipants: {{ Calls::context()->maxParticipants() }},
-})
-
-client.start()
-```
-
-The [`@packstub/calls` README](https://github.com/packstub/calls-js) documents the client's events (`incoming`, `localstream`, `remotestream`, `peers`, `statechange`, `ended`) and controls (`callUser`, `invite`, `accept`, `decline`, `hangUp`, `setMuted`, `setCameraOff`, `shareScreen`).
+The widget is [`@packstub/calls`](https://github.com/packstub/calls-js)'s `CallWidget` over its `CallClient`; both are plain ES modules without a framework, so the same engine runs in a Filament panel through [Filament Calls](https://github.com/packstub/filament-calls). Section [The widget](#the-widget) shows how to restyle it, change its markup, or use the engine without it.
 
 ## Usage
 
@@ -160,6 +138,55 @@ Event::listen(CallEnded::class, function (CallEnded $event) {
 
 Implement `Packstub\Calls\Contracts\CallContext` when the signed-in user does not come from a guard the config can name (a multi-tenant app, an API token): `currentUserId()`, `findUser()`, `who()`, `canCall()`, `iceServers()`, `hasVideo()`, `maxParticipants()`. Bind it in a service provider's `register()`; the package only binds `AppContext` when nothing else is bound.
 
+## The widget
+
+`<x-calls::widget />` takes a few attributes:
+
+| Attribute | Default | Does |
+| --- | --- | --- |
+| `routes` | `calls.` | the route name prefix given to `Calls::routes()` |
+| `pop-out` | config `pop_out` | open each call in its own window, with a chip on the page |
+| `styles` | `true` | load the package stylesheet; `false` to bring your own |
+| `options` | `[]` | more `CallWidget` options, merged over the ones the component builds: `labels`, `video`, `windowFeatures`, `callSelector`… |
+| `name` | `calls` | the global the widget is kept in, `window.calls`, for your own scripts |
+
+Any element with `data-calls-call="<user id>"` is a call button, so `<x-calls::button>` is a convenience: it renders `<button data-calls-call="…">Call</button>` with your attributes and slot, and nothing for the signed-in person. From a script, `window.calls.callUser(id)`, `hangUp()`, `toggleMute()`… do the same as the buttons, and `document.addEventListener('calls:ended', …)` hears every event of the engine as `calls:<type>` (`statechange`, `incoming`, `peers`, `peerstate`, `ended`…) plus `calls:sharing` when someone's screen takes the stage.
+
+### Restyling it
+
+Every class is `calls-*` and the colours and sizes are custom properties on `.calls`:
+
+```css
+.calls { --calls-accent: #d97706; --calls-bg: #1c1917; --calls-radius: 0.75rem; --calls-width: 28rem; }
+```
+
+Set `:styles="false"` and write your own stylesheet against the class names when a few variables are not enough. The texts come from `lang/vendor/calls/en/ui.php` once you publish the translations (`php artisan vendor:publish --tag=calls-translations`).
+
+### Your own markup
+
+The widget renders five views from template functions, `incoming` (the toast), `chip`, `window`, `tile` (one per other participant) and `notice`, each once when it appears, and keeps it current through a few `data-calls-*` hooks: `text`, `show`, `class`, `attr`, `src`, `video` and `action`. Hand in your own markup with whichever hooks you keep, from a script of your own (templates are functions, so they cannot come through the Blade attribute):
+
+```blade
+<x-calls::widget :options="['autostart' => false]" />
+<script type="module">
+    window.addEventListener('calls:ready', ({ detail: { widget } }) => {
+        widget.templates.incoming = (v) => `
+            <div class="my-toast" data-calls-scope>
+                <b data-calls-text="peerName"></b> ${v.labels.incoming}
+                <button data-calls-action="accept">${v.labels.accept}</button>
+                <button data-calls-action="decline">${v.labels.decline}</button>
+            </div>`
+        widget.start()
+    })
+</script>
+```
+
+The view model a template and its hooks read is documented in the [`@packstub/calls` README](https://github.com/packstub/calls-js#the-widget), together with subclassing `CallWidget` for deeper changes.
+
+### Without the widget
+
+The engine alone, for a UI of your own or a framework component: `import { CallClient, HttpSignaling } from '{{ Calls::asset('index.js') }}'` (or `npm install @packstub/calls`) and give it the eight routes, the CSRF token, `Calls::context()->iceServers()`, `hasVideo()` and `maxParticipants()`. Its README documents the events (`incoming`, `localstream`, `remotestream`, `peers`, `statechange`, `ended`) and controls (`callUser`, `invite`, `accept`, `decline`, `hangUp`, `setMuted`, `setCameraOff`, `shareScreen`).
+
 ## The endpoints
 
 For another browser client, or another backend speaking to `@packstub/calls`:
@@ -174,6 +201,7 @@ For another browser client, or another backend speaking to `@packstub/calls`:
 | `POST` | `calls/{id}/signals` `{type, payload, to?}` | queue an `offer`, `answer`, `ice`, `reset` or `state` (mute, camera off, screen share) for one participant (`to`) or for everyone else (410 after the call ended) |
 | `POST` | `calls/{id}/leave` `{tab}` | a beacon as the window unloads: the side is free for the next page |
 | `GET` | `poll?after={cursor}&call={id}&tab={tab}&hold=1` | the call I am on (held by this window when `hold` is set: its heartbeat), a call ringing me, and my new signals (each with `from`) |
+| `GET` | `window?call={id}&callee={user}` | the widget's pop-out page: a bare page with the widget, which rings `callee` or answers `call` |
 
 A call is `{id, status, end_reason, role, seat, joined, peers: [{id, name, avatar, seat, status, held, seen_ago}], peer, peer_held, peer_seen_ago, held, answered_at}`; `peer` and its two fields describe the first live peer, for a 1-on-1 client. Every window has a random `tab` id; a participant's side belongs to one window at a time, and a window that stops polling for 5 seconds loses it. A fresh page claims the side, sends `reset` and a new offer to each peer, and they build new connections for it. Per-call routes answer 403 to anyone who is not on the call.
 

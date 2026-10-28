@@ -104,4 +104,18 @@ return [
 
     'max_participants' => (int) env('CALLS_MAX_PARTICIPANTS', 4),
 
+    /*
+    |--------------------------------------------------------------------------
+    | The widget's pop-out window
+    |--------------------------------------------------------------------------
+    |
+    | `<x-calls::widget />` opens each call in a small window of its own, so
+    | the page it started from can navigate, reload or close while the call
+    | goes on; the page shows a chip for it. Off, the call lives in the page
+    | (right for a single-page app) and a full page load reconnects it.
+    |
+    */
+
+    'pop_out' => (bool) env('CALLS_POP_OUT', true),
+
 ];

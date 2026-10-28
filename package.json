@@ -1,0 +1,11 @@
+{
+    "name": "calls",
+    "private": true,
+    "description": "Build helper: copies the @packstub/calls engine and widget into resources/dist (committed, so Composer users need no npm).",
+    "scripts": {
+        "build:js": "cp node_modules/@packstub/calls/src/index.js node_modules/@packstub/calls/src/widget.js node_modules/@packstub/calls/src/widget.css resources/dist/"
+    },
+    "devDependencies": {
+        "@packstub/calls": "github:packstub/calls-js"
+    }
+}
