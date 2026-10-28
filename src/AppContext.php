@@ -101,6 +101,11 @@ class AppContext implements CallContext
         return auth()->guard(config('packstub-calls.guard'));
     }
 
+    public function scope(): string
+    {
+        return (string) (config('packstub-calls.guard') ?? config('auth.defaults.guard'));
+    }
+
     public function currentUserId(): ?string
     {
         $id = $this->guard()->id();

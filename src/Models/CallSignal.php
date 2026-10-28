@@ -4,6 +4,7 @@ namespace Packstub\Calls\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Packstub\Calls\Models\Concerns\UsesCallsConnection;
 
 /**
  * One signaling message on its way from one participant to another: offer, answer,
@@ -20,6 +21,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class CallSignal extends Model
 {
+    use UsesCallsConnection;
+
     public const TYPES = ['offer', 'answer', 'ice', 'reset', 'state'];
 
     public $timestamps = false;

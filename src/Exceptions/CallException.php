@@ -8,4 +8,7 @@ use RuntimeException;
 abstract class CallException extends RuntimeException
 {
     public int $status = 422;
+
+    /** A word for clients to tell the errors apart (two of them answer 409): `busy`, `not_ringing`… */
+    public string $reason = 'error';
 }

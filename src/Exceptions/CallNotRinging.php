@@ -6,4 +6,6 @@ namespace Packstub\Calls\Exceptions;
 class CallNotRinging extends CallException
 {
     public int $status = 409;
+
+    public string $reason = 'not_ringing';
 }

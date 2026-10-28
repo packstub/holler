@@ -2,6 +2,7 @@
 
 namespace Packstub\Calls\Http;
 
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -133,6 +134,7 @@ class CallsController
             tab: substr((string) $request->query('tab', ''), 0, 32) ?: null,
             // Only a window that runs the connection takes the side; a tab showing the chip just watches.
             hold: $request->boolean('hold'),
+            kind: preg_match('/^[a-z0-9_-]{1,16}$/', (string) $request->query('kind', '')) ? (string) $request->query('kind') : null,
         ));
     }
 
@@ -149,7 +151,7 @@ class CallsController
     {
         $me = $this->me();
 
-        abort_unless($call->involves($me), 403);
+        abort_unless($call->involves($me) && $this->calls->inScope($call, $me), 403);
 
         return $me;
     }
@@ -165,7 +167,11 @@ class CallsController
         try {
             return $callback();
         } catch (CallException $exception) {
-            throw new HttpException($exception->status, $exception->getMessage(), $exception);
+            // The message for people, the reason for code: CalleeBusy and CallNotRinging are both 409.
+            throw new HttpResponseException(response()->json([
+                'message' => $exception->getMessage(),
+                'reason' => $exception->reason,
+            ], $exception->status));
         }
     }
 }

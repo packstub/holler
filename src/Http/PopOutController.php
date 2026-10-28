@@ -22,7 +22,9 @@ class PopOutController
         if ($callId) {
             $call = Call::query()->findOrFail($callId);
 
-            abort_unless($call->involves((string) Calls::currentUserId()), 403);
+            $me = (string) Calls::currentUserId();
+
+            abort_unless($call->involves($me) && Calls::inScope($call, $me), 403);
         }
 
         return view('calls::window', ['routes' => $request->route()->getName() ? preg_replace('/window$/', '', $request->route()->getName()) : 'calls.']);

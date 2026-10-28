@@ -15,6 +15,12 @@ use Illuminate\Contracts\Auth\Authenticatable;
  */
 interface CallContext
 {
+    /**
+     * Whose ids these are: the guard (or panel) the users come from. Calls are kept
+     * apart by scope, so user 7 of one guard is never rung for user 7 of another.
+     */
+    public function scope(): string;
+
     /** The signed-in user's id as a string, or null for a guest. */
     public function currentUserId(): ?string;
 

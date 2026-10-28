@@ -39,6 +39,8 @@
         'popup' => $popup,
         'csrf' => csrf_token(),
         'iceServers' => $context->iceServers(),
+        'iceTransportPolicy' => \Packstub\Calls\Facades\Calls::rtcConfiguration()['iceTransportPolicy'],
+        'kind' => \Packstub\Calls\Models\Call::KIND,
         'video' => $context->hasVideo(),
         'poll' => config('packstub-calls.poll'),
         'reconnectTimeout' => (int) config('packstub-calls.reconnect_timeout', 15) * 1000,

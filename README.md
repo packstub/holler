@@ -112,9 +112,25 @@ app(AppContext::class)->iceServersUsing(fn () => [
 
 A TURN relay forwards packets it cannot decrypt (WebRTC media is DTLS-SRTP end to end), so "the media never touches our servers" stays true in spirit; be accurate about it in your own privacy copy.
 
+ICE candidates show each side's network addresses to the other. To keep them hidden, send everything through your TURN server with `CALLS_ICE_TRANSPORT_POLICY=relay` (`Calls::rtcConfiguration()` hands the browsers both settings).
+
 ### Polling and timeouts
 
-Every open window asks the server for incoming calls every 5 seconds and, during a call, for signals every second; that poll is also the heartbeat that tells the other side you are still there. `config/packstub-calls.php`: `CALLS_POLL_IDLE` and `CALLS_POLL_ACTIVE` (milliseconds), `CALLS_RING_TIMEOUT` (seconds before a call is marked missed, default 45), `CALLS_RECONNECT_TIMEOUT` (seconds a side may be away before the call ends as lost, default 15), `guard` (the guard people are signed in with, default guard when null).
+Every open window asks the server for incoming calls every 5 seconds and, during a call, for signals every second; that poll is also the heartbeat that tells the other side you are still there. `config/packstub-calls.php`: `CALLS_POLL_IDLE` and `CALLS_POLL_ACTIVE` (milliseconds), `CALLS_RING_TIMEOUT` (seconds before a call is marked missed, default 45), `CALLS_RECONNECT_TIMEOUT` (seconds a side may be away before the call ends as lost, default 15), `guard` (the guard people are signed in with, default guard when null), `CALLS_MAX_SIGNAL_KB` (the largest signal the server relays, 64 KB; a session description is a few).
+
+The routes take whatever middleware you pass to `Calls::routes()`; add a `throttle` there if your app throttles its other JSON routes (a window polls once a second during a call).
+
+### Keeping the tables small
+
+Signals are deleted when their call ends. Calls everybody walked away from, and ended calls older than `CALLS_PRUNE_AFTER_DAYS` (90; null keeps the log forever), go with `calls:prune`; schedule it daily:
+
+```php
+Schedule::command('calls:prune')->daily();
+```
+
+### Several guards, several databases
+
+Calls are kept apart by guard: user 7 of `admin` is never rung for user 7 of `web`, even when both sign in to the same app. Under a database per tenant, set `CALLS_DB_CONNECTION` to the central connection so a call between two places meets in one table.
 
 ### Events and the call log
 
@@ -136,7 +152,7 @@ Event::listen(CallEnded::class, function (CallEnded $event) {
 
 ### Your own context
 
-Implement `Packstub\Calls\Contracts\CallContext` when the signed-in user does not come from a guard the config can name (a multi-tenant app, an API token): `currentUserId()`, `findUser()`, `who()`, `canCall()`, `iceServers()`, `hasVideo()`, `maxParticipants()`. Bind it in a service provider's `register()`; the package only binds `AppContext` when nothing else is bound.
+Implement `Packstub\Calls\Contracts\CallContext` when the signed-in user does not come from a guard the config can name (a multi-tenant app, an API token): `scope()` (whose ids these are, the guard's name in the shipped context), `currentUserId()`, `findUser()`, `who()`, `canCall()`, `iceServers()`, `hasVideo()`, `maxParticipants()`. Bind it in a service provider's `register()`; the package only binds `AppContext` when nothing else is bound.
 
 ## The widget
 
@@ -183,6 +199,20 @@ The widget renders five views from template functions, `incoming` (the toast), `
 
 The view model a template and its hooks read is documented in the [`@packstub/calls` README](https://github.com/packstub/calls-js#the-widget), together with subclassing `CallWidget` for deeper changes.
 
+### Calls for another package (guests, kinds)
+
+A package with a UI of its own (a support tool that calls a visitor of the site, say) uses the service directly:
+
+```php
+use Packstub\Calls\Participant;
+
+$call = Calls::start($agent, new Participant('guest:'.$request->id, 'Visitor on /checkout'), kind: 'assist');
+Calls::answer($call, 'guest:'.$request->id, $tab);
+Calls::poll('guest:'.$request->id, $after, $call->id, $tab, hold: true, kind: 'assist');
+```
+
+A `Participant` is someone no guard knows: its id has a prefix and a colon, its name and avatar are stored on the call, and the context is not asked about it (the code that made it decided). A string with a colon is never looked up, so nobody can ring a guest from the HTTP routes, and a guest brings nobody into a call. The `kind` keeps such calls away from the widget, which polls with `kind=call`. Your own routes authenticate the guest; the package's routes stay behind `auth`.
+
 ### Without the widget
 
 The engine alone, for a UI of your own or a framework component: `import { CallClient, HttpSignaling } from '{{ Calls::asset('index.js') }}'` (or `npm install @packstub/calls`) and give it the eight routes, the CSRF token, `Calls::context()->iceServers()`, `hasVideo()` and `maxParticipants()`. Its README documents the events (`incoming`, `localstream`, `remotestream`, `peers`, `statechange`, `ended`) and controls (`callUser`, `invite`, `accept`, `decline`, `hangUp`, `setMuted`, `setCameraOff`, `shareScreen`).
@@ -200,10 +230,12 @@ For another browser client, or another backend speaking to `@packstub/calls`:
 | `POST` | `calls/{id}/invite` `{callee}` | add someone to the call I am on; 422 when not allowed, full, or not joined yet, 409 when they are busy |
 | `POST` | `calls/{id}/signals` `{type, payload, to?}` | queue an `offer`, `answer`, `ice`, `reset` or `state` (mute, camera off, screen share) for one participant (`to`) or for everyone else (410 after the call ended) |
 | `POST` | `calls/{id}/leave` `{tab}` | a beacon as the window unloads: the side is free for the next page |
-| `GET` | `poll?after={cursor}&call={id}&tab={tab}&hold=1` | the call I am on (held by this window when `hold` is set: its heartbeat), a call ringing me, and my new signals (each with `from`) |
+| `GET` | `poll?after={cursor}&call={id}&tab={tab}&hold=1&kind=call` | the call I am on (held by this window when `hold` is set: its heartbeat), a call ringing me, and my new signals (each with `from`); only calls of `kind` when given |
 | `GET` | `window?call={id}&callee={user}` | the widget's pop-out page: a bare page with the widget, which rings `callee` or answers `call` |
 
-A call is `{id, status, end_reason, role, seat, joined, peers: [{id, name, avatar, seat, status, held, seen_ago}], peer, peer_held, peer_seen_ago, held, answered_at}`; `peer` and its two fields describe the first live peer, for a 1-on-1 client. Every window has a random `tab` id; a participant's side belongs to one window at a time, and a window that stops polling for 5 seconds loses it. A fresh page claims the side, sends `reset` and a new offer to each peer, and they build new connections for it. Per-call routes answer 403 to anyone who is not on the call.
+Errors are `{message, reason}`: `reason` is `not_allowed`, `full`, `busy`, `not_ringing`, `ended` or `too_large` (413), so a client can tell the two 409s apart. Signals come only from people in the call (422 otherwise).
+
+A call is `{id, kind, status, end_reason, role, seat, joined, peers: [{id, name, avatar, seat, status, held, seen_ago}], peer, peer_held, peer_seen_ago, held, answered_at}`; `peer` and its two fields describe the first live peer, for a 1-on-1 client. Every window has a random `tab` id; a participant's side belongs to one window at a time, and a window that stops polling for 5 seconds loses it. A fresh page claims the side, sends `reset` and a new offer to each peer, and they build new connections for it. Per-call routes answer 403 to anyone who is not on the call.
 
 ## Testing
 

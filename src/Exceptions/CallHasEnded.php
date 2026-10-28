@@ -6,4 +6,6 @@ namespace Packstub\Calls\Exceptions;
 class CallHasEnded extends CallException
 {
     public int $status = 410;
+
+    public string $reason = 'ended';
 }

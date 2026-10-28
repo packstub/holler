@@ -9,4 +9,5 @@ return [
     'full' => 'A call takes up to :max people.',
     'join_first' => 'Join the call before adding people to it.',
     'not_on_call' => 'That person is not on this call.',
+    'too_large' => 'This signal is larger than :kb KB.',
 ];
