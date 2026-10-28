@@ -263,6 +263,11 @@ class Calls
                 throw new CallNotAllowed(__('calls::messages.join_first'));
             }
 
+            // A guest agreed to the people on their call, not to whoever those bring in.
+            if ($call->participants->contains(fn (CallParticipant $participant) => Participant::isGuestId($participant->user_id))) {
+                throw new CallNotAllowed(__('calls::messages.cannot_call'));
+            }
+
             $personId = static::idOf($person);
             $existing = $call->participant($personId);
 
