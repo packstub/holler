@@ -2,10 +2,11 @@
 
 namespace Packstub\Calls\Events;
 
+use Illuminate\Contracts\Events\ShouldDispatchAfterCommit;
 use Illuminate\Foundation\Events\Dispatchable;
 use Packstub\Calls\Models\Call;
 
-class CallAnswered
+class CallAnswered implements ShouldDispatchAfterCommit
 {
     use Dispatchable;
 

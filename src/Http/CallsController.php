@@ -2,15 +2,16 @@
 
 namespace Packstub\Calls\Http;
 
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Validation\Rule;
 use Packstub\Calls\Calls;
 use Packstub\Calls\Exceptions\CallException;
+use Packstub\Calls\Exceptions\CallNotAllowed;
 use Packstub\Calls\Models\Call;
 use Packstub\Calls\Models\CallSignal;
-use Symfony\Component\HttpKernel\Exception\HttpException;
 
 /**
  * The signaling endpoints: a few JSON routes behind the app's auth. The
@@ -34,7 +35,7 @@ class CallsController
 
         foreach ($callees as $callee) {
             if (! is_scalar($callee) || strlen((string) $callee) > 64) {
-                throw new HttpException(422, __('calls::messages.cannot_call'));
+                $this->attempt(fn () => throw new CallNotAllowed(__('calls::messages.cannot_call')));
             }
         }
 
@@ -81,7 +82,7 @@ class CallsController
         $callee = $request->input('callee');
 
         if (! is_scalar($callee) || strlen((string) $callee) > 64) {
-            throw new HttpException(422, __('calls::messages.cannot_call'));
+            $this->attempt(fn () => throw new CallNotAllowed(__('calls::messages.cannot_call')));
         }
 
         $this->attempt(fn (): Call => $this->calls->invite($call, $me, (string) $callee));
@@ -133,7 +134,16 @@ class CallsController
             tab: substr((string) $request->query('tab', ''), 0, 32) ?: null,
             // Only a window that runs the connection takes the side; a tab showing the chip just watches.
             hold: $request->boolean('hold'),
+            kind: preg_match('/^[a-z0-9_-]{1,16}$/', (string) $request->query('kind', '')) ? (string) $request->query('kind') : null,
         ));
+    }
+
+    /** What the browsers connect through, asked when a call starts: the ICE servers and the transport policy. */
+    public function ice(): JsonResponse
+    {
+        $this->me();
+
+        return response()->json($this->calls->rtcConfiguration())->header('Cache-Control', 'no-store');
     }
 
     protected function me(): string
@@ -149,7 +159,7 @@ class CallsController
     {
         $me = $this->me();
 
-        abort_unless($call->involves($me), 403);
+        abort_unless($call->involves($me) && $this->calls->inScope($call, $me), 403);
 
         return $me;
     }
@@ -165,7 +175,11 @@ class CallsController
         try {
             return $callback();
         } catch (CallException $exception) {
-            throw new HttpException($exception->status, $exception->getMessage(), $exception);
+            // The message for people, the reason for code: CalleeBusy and CallNotRinging are both 409.
+            throw new HttpResponseException(response()->json([
+                'message' => $exception->getMessage(),
+                'reason' => $exception->reason,
+            ], $exception->status));
         }
     }
 }

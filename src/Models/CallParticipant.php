@@ -5,6 +5,7 @@ namespace Packstub\Calls\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
+use Packstub\Calls\Models\Concerns\UsesCallsConnection;
 
 /**
  * One person on a call: their seat (the order they were invited in; the lower
@@ -14,6 +15,8 @@ use Illuminate\Support\Carbon;
  * @property int $id
  * @property int $call_id
  * @property string $user_id
+ * @property ?string $name set for a participant made in code (`guest:<uuid>`)
+ * @property ?string $avatar
  * @property int $seat
  * @property string $status
  * @property ?string $tab
@@ -24,6 +27,8 @@ use Illuminate\Support\Carbon;
  */
 class CallParticipant extends Model
 {
+    use UsesCallsConnection;
+
     public const RINGING = 'ringing';
 
     public const JOINED = 'joined';

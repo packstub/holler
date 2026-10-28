@@ -6,4 +6,6 @@ namespace Packstub\Calls\Exceptions;
 class CallNotAllowed extends CallException
 {
     public int $status = 422;
+
+    public string $reason = 'not_allowed';
 }

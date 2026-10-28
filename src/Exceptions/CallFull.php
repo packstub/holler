@@ -6,4 +6,6 @@ namespace Packstub\Calls\Exceptions;
 class CallFull extends CallException
 {
     public int $status = 422;
+
+    public string $reason = 'full';
 }

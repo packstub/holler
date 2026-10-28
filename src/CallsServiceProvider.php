@@ -5,6 +5,7 @@ namespace Packstub\Calls;
 use Illuminate\Foundation\Http\Middleware\TrimStrings;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use Packstub\Calls\Commands\PruneCommand;
 use Packstub\Calls\Contracts\CallContext;
 use Packstub\Calls\Http\AssetController;
 use Spatie\LaravelPackageTools\Package;
@@ -22,6 +23,7 @@ class CallsServiceProvider extends PackageServiceProvider
             ->hasTranslations()
             ->hasViews()
             ->hasMigration('create_calls_table')
+            ->hasCommand(PruneCommand::class)
             ->runsMigrations();
     }
 

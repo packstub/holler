@@ -17,7 +17,7 @@
     'styles' => true,
     'options' => [],
     'name' => 'calls',
-    'popup' => false,
+    'inPopOut' => false,
 ])
 
 @php
@@ -33,12 +33,14 @@
             'signal' => route($routes.'signal', ['call' => '__ID__']),
             'leave' => route($routes.'leave', ['call' => '__ID__']),
             'invite' => route($routes.'invite', ['call' => '__ID__']),
+            'ice' => route($routes.'ice'),
         ],
-        'windowUrl' => $popOut || $popup ? route($routes.'window', ['call' => '__ID__', 'callee' => '__USER__']) : null,
+        'windowUrl' => $popOut || $inPopOut ? route($routes.'window', ['call' => '__ID__', 'callee' => '__USER__']) : null,
         'popOut' => $popOut,
-        'popup' => $popup,
+        'inPopOut' => $inPopOut,
         'csrf' => csrf_token(),
-        'iceServers' => $context->iceServers(),
+        'iceTransportPolicy' => \Packstub\Calls\Facades\Calls::rtcConfiguration()['iceTransportPolicy'],
+        'kind' => \Packstub\Calls\Models\Call::KIND,
         'video' => $context->hasVideo(),
         'poll' => config('packstub-calls.poll'),
         'reconnectTimeout' => (int) config('packstub-calls.reconnect_timeout', 15) * 1000,

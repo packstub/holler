@@ -6,11 +6,14 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
+use Packstub\Calls\Models\Concerns\UsesCallsConnection;
 
 /**
  * @property int $id
  * @property string $caller_id
  * @property string $callee_id the first person called; everyone is in `participants`
+ * @property string $kind `call`, or the kind another package gave its calls
+ * @property string $scope whose user ids these are (the context's guard)
  * @property string $status
  * @property ?string $end_reason
  * @property ?Carbon $answered_at
@@ -20,6 +23,11 @@ use Illuminate\Support\Carbon;
  */
 class Call extends Model
 {
+    use UsesCallsConnection;
+
+    /** The kind of the calls the widgets make and draw. */
+    public const KIND = 'call';
+
     public const RINGING = 'ringing';
 
     public const ACTIVE = 'active';

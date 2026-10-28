@@ -67,7 +67,7 @@ it('renders a call button for anyone but yourself', function (): void {
 it('opens the pop-out page for a call of mine only', function (): void {
     $this->actingAs($this->ion)->get(callsRoute('window', ['callee' => $this->ana->getKey()]))
         ->assertOk()
-        ->assertSee('"popup":true', false)
+        ->assertSee('"inPopOut":true', false)
         ->assertSee('"windowUrl":"http://localhost/calls/window?call=__ID__&callee=__USER__"', false);
 
     $call = Calls::start($this->ion, $this->ana, 'ion-1');

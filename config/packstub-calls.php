@@ -17,6 +17,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Database connection
+    |--------------------------------------------------------------------------
+    |
+    | Where the calls tables live; null for the default connection. With a
+    | database per tenant, point it at the central connection so a call
+    | between two places (a panel and a visitor's page) meets in one table.
+    |
+    */
+
+    'connection' => env('CALLS_DB_CONNECTION'),
+
+    /*
+    |--------------------------------------------------------------------------
     | ICE servers
     |--------------------------------------------------------------------------
     |
@@ -37,6 +50,31 @@ return [
             'credential' => env('CALLS_TURN_CREDENTIAL'),
         ] : null,
     ])),
+
+    /*
+    |--------------------------------------------------------------------------
+    | ICE transport policy
+    |--------------------------------------------------------------------------
+    |
+    | `all` lets the browsers connect directly whenever they can. `relay`
+    | sends everything through your TURN server, so neither side ever learns
+    | the other's network addresses; it needs a TURN server above.
+    |
+    */
+
+    'ice_transport_policy' => env('CALLS_ICE_TRANSPORT_POLICY', 'all'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Signal size
+    |--------------------------------------------------------------------------
+    |
+    | The largest signal payload, in KB, the server relays. A session
+    | description is a few KB; 0 turns the check off.
+    |
+    */
+
+    'max_signal_kb' => (int) env('CALLS_MAX_SIGNAL_KB', 64),
 
     /*
     |--------------------------------------------------------------------------
@@ -117,5 +155,18 @@ return [
     */
 
     'pop_out' => (bool) env('CALLS_POP_OUT', true),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Pruning
+    |--------------------------------------------------------------------------
+    |
+    | `php artisan calls:prune` (schedule it daily) ends the calls everybody
+    | walked away from and deletes ended calls older than this many days,
+    | with their participants. Null keeps the call log forever.
+    |
+    */
+
+    'prune_after_days' => env('CALLS_PRUNE_AFTER_DAYS', 90),
 
 ];
