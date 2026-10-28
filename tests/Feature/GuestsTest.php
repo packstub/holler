@@ -150,7 +150,7 @@ it('starts a call in a scope of its choosing and shows a guest the names stored 
 });
 
 it('takes no user ids for a call in another scope: they would be looked up in the wrong guard', function (): void {
-    expect(fn () => Calls::start($this->ana, (string) $this->ion->getKey(), scope: 'staff'))->toThrow(\Packstub\Calls\Exceptions\CallNotAllowed::class)
+    expect(fn () => Calls::start($this->ana, (string) $this->ion->getKey(), scope: 'staff'))->toThrow(CallNotAllowed::class)
         ->and(Calls::start($this->ana, $this->guest, kind: 'assist', scope: 'staff')->scope)->toBe('staff');
 });
 
@@ -158,6 +158,6 @@ it('lets nobody bring a third person into a call with a guest on it', function (
     $call = Calls::start($this->ana, $this->guest, kind: 'assist');
     Calls::answer($call, 'guest:7f9c');
 
-    expect(fn () => Calls::invite($call, (string) $this->ana->getKey(), $this->ion))->toThrow(\Packstub\Calls\Exceptions\CallNotAllowed::class);
+    expect(fn () => Calls::invite($call, (string) $this->ana->getKey(), $this->ion))->toThrow(CallNotAllowed::class);
     $this->actingAs($this->ana)->postJson(callsRoute('invite', ['call' => $call->id]), ['callee' => $this->ion->getKey()])->assertStatus(422);
 });

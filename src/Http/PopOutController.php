@@ -11,7 +11,7 @@ use Packstub\Calls\Models\Call;
  * The widget's pop-out: a page with nothing on it but the call widget, opened in its
  * own browser window so the call outlives whatever the main tab does. `?callee=`
  * rings someone from here, `?call=` answers (or continues) that call. (Filament Calls
- * has a WindowController of its own in this namespace, hence the name.)
+ * has a WindowController of its own, hence the name.)
  */
 class PopOutController
 {
