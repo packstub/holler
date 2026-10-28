@@ -138,6 +138,14 @@ class CallsController
         ));
     }
 
+    /** What the browsers connect through, asked when a call starts: the ICE servers and the transport policy. */
+    public function ice(): JsonResponse
+    {
+        $this->me();
+
+        return response()->json($this->calls->rtcConfiguration())->header('Cache-Control', 'no-store');
+    }
+
     protected function me(): string
     {
         $me = $this->calls->currentUserId();

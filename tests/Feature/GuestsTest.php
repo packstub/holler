@@ -118,3 +118,14 @@ it('keeps the tables on the configured connection', function (): void {
         ->and(DB::connection('central')->table('calls')->count())->toBe(1)
         ->and(DB::connection('central')->table('call_participants')->count())->toBe(2);
 });
+
+it('hands a signed-in user the ICE servers when a call starts, never cached', function (): void {
+    app(\Packstub\Calls\AppContext::class)->iceServersUsing(fn () => [['urls' => 'turn:t.example.com', 'username' => 'u'.now()->timestamp, 'credential' => 'c']]);
+
+    $this->getJson(callsRoute('ice'))->assertUnauthorized();
+    $this->actingAs($this->ion)->getJson(callsRoute('ice'))
+        ->assertOk()
+        ->assertHeader('Cache-Control', 'no-store, private')
+        ->assertJsonPath('iceServers.0.urls', 'turn:t.example.com')
+        ->assertJsonPath('iceTransportPolicy', 'all');
+});

@@ -24,6 +24,7 @@ First release. The signaling core moved here from `packstub/filament-calls`, whi
 - Calls are kept apart by scope (`CallContext::scope()`, the guard's name in `AppContext`): two guards with overlapping ids never ring each other, and the per-call routes answer 403 across scopes.
 - `CALLS_DB_CONNECTION` (`connection`): the tables, the migration and the transactions on one connection, for a database per tenant.
 - `CALLS_ICE_TRANSPORT_POLICY` (`all` or `relay`) and `Calls::rtcConfiguration()`; `CALLS_MAX_SIGNAL_KB` (64): a larger signal is refused with 413 (`SignalTooLarge`).
+- `GET {prefix}/ice-servers` (`{as}ice`): the ICE servers and transport policy, asked when a call starts, so short-lived TURN credentials from `iceServersUsing()` are fresh per call; the widget uses it.
 - Errors from the endpoints are `{message, reason}` (`not_allowed`, `full`, `busy`, `not_ringing`, `ended`, `too_large`).
 - `calls:prune` ends the calls everybody walked away from and deletes ended calls older than `CALLS_PRUNE_AFTER_DAYS` (90) with their participants and signals.
 - Answer, hang-up, the timeouts and invites run under a lock on the call and re-read it: an answer that lands after the caller gave up no longer brings the call back as active, two polls expiring the same person fire `ParticipantLeft` and `CallEnded` once, two invites at once cannot pass the cap or insert the same person. Events dispatch after the transaction commits.

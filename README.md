@@ -102,7 +102,7 @@ CALLS_TURN_USERNAME=...
 CALLS_TURN_CREDENTIAL=...
 ```
 
-Or in code, for example with short-lived TURN credentials:
+Or in code, for example with short-lived TURN credentials (the widget asks for them each time a call starts, from the `ice-servers` route):
 
 ```php
 app(AppContext::class)->iceServersUsing(fn () => [
@@ -231,6 +231,7 @@ For another browser client, or another backend speaking to `@packstub/calls`:
 | `POST` | `calls/{id}/signals` `{type, payload, to?}` | queue an `offer`, `answer`, `ice`, `reset` or `state` (mute, camera off, screen share) for one participant (`to`) or for everyone else (410 after the call ended) |
 | `POST` | `calls/{id}/leave` `{tab}` | a beacon as the window unloads: the side is free for the next page |
 | `GET` | `poll?after={cursor}&call={id}&tab={tab}&hold=1&kind=call` | the call I am on (held by this window when `hold` is set: its heartbeat), a call ringing me, and my new signals (each with `from`); only calls of `kind` when given |
+| `GET` | `ice-servers` | `{iceServers, iceTransportPolicy}`, asked when a call starts (never cached) |
 | `GET` | `window?call={id}&callee={user}` | the widget's pop-out page: a bare page with the widget, which rings `callee` or answers `call` |
 
 Errors are `{message, reason}`: `reason` is `not_allowed`, `full`, `busy`, `not_ringing`, `ended` or `too_large` (413), so a client can tell the two 409s apart. Signals come only from people in the call (422 otherwise).
