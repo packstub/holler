@@ -1,6 +1,6 @@
 {
     "name": "packstub/calls",
-    "description": "1-on-1 audio, video and screen-share calls between the users of a Laravel app, peer to peer over WebRTC: the media goes browser to browser, Laravel only handles who calls whom and relays the few signaling messages over polled HTTP. No websockets. packstub/filament-calls adds the panel UI.",
+    "description": "Audio, video and screen-share calls between the users of a Laravel app, one on one or in small groups, peer to peer over WebRTC. Laravel only handles who calls whom and relays the signaling over polled HTTP, no websockets; a Blade widget and button put calls on any page, and guests and call kinds let another package build on it. packstub/filament-calls adds a Filament panel UI.",
     "keywords": [
         "packstub",
         "laravel",
@@ -8,8 +8,10 @@
         "video-call",
         "voice-call",
         "screen-share",
+        "group-call",
         "peer-to-peer",
-        "signaling"
+        "signaling",
+        "blade"
     ],
     "homepage": "https://github.com/packstub/calls",
     "support": {
@@ -38,13 +40,16 @@
     ],
     "require": {
         "php": "^8.3",
-        "illuminate/contracts": "^12.0 || ^13.0",
-        "spatie/laravel-package-tools": "^1.92"
+        "illuminate/contracts": "^12.69 || ^13.30",
+        "spatie/laravel-package-tools": "^1.93"
     },
     "require-dev": {
-        "laravel/pint": "^1.27",
+        "laravel/pint": "^1.32",
         "orchestra/testbench": "^10.0 || ^11.0",
-        "pestphp/pest": "^4.0 || ^5.0"
+        "pestphp/pest": "^4.7.8 || ^5.3.4"
+    },
+    "suggest": {
+        "packstub/filament-calls": "The same calls inside a Filament panel: a CallAction, a widget and a pop-out window drawn with Filament's components"
     },
     "autoload": {
         "psr-4": {

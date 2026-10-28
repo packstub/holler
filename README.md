@@ -9,7 +9,7 @@ This package is the server side (the `calls`, `call_participants` and `call_sign
 - Group calls: ring several people at once or add someone to a running call; every participant has a seat, the browsers connect to each other in a full mesh (no media server), and the call goes on for the others when someone hangs up. `CALLS_MAX_PARTICIPANTS` caps a call (4 by default, which is where a mesh stops being comfortable).
 - `CallContext`: who is signed in, how people are named to the other side, who may call whom, which STUN and TURN servers the browsers use. The default `AppContext` reads the config file and a few closures.
 - Calls survive a full page load: each browser window holds its side of a call through the poll, a `leave` beacon frees it as the page unloads, a fresh page claims the side again. A side gone longer than `reconnect_timeout` ends the call as dropped.
-- `CallStarted`, `CallAnswered`, `CallEnded` events and a `Call` model with `duration()` for a call log.
+- `CallStarted`, `CallAnswered`, `ParticipantJoined`, `ParticipantLeft` and `CallEnded` events, and a `Call` model with `duration()` for a call log.
 - STUN out of the box; your own TURN server through four env variables for networks where a direct path fails (the relay only forwards encrypted packets).
 
 ## Requirements
@@ -32,6 +32,10 @@ use Packstub\Calls\Facades\Calls;
 Calls::routes();                                        // /calls/… behind `auth`, named calls.*
 Calls::routes(prefix: 'team/calls', middleware: ['auth', 'verified'], as: 'team.calls.');
 ```
+
+`window: false` leaves out the widget's pop-out page (`GET {prefix}/window`), for a package that draws a window of its own. Keep the prefix ending in `calls`: the package skips `TrimStrings` on `*calls/*/signals`, since a session description must keep its trailing CRLF.
+
+The migration runs from the package; the config file is optional (`php artisan vendor:publish --tag=calls-config`), most of its keys read the `CALLS_*` variables below.
 
 Put the widget in your layout, once, and a button wherever there is someone to call:
 
@@ -128,6 +132,8 @@ Signals are deleted when their call ends. Calls everybody walked away from, and 
 Schedule::command('calls:prune')->daily();
 ```
 
+`--days=30` overrides the config for one run.
+
 ### Several guards, several databases
 
 Calls are kept apart by guard: user 7 of `admin` is never rung for user 7 of `web`, even when both sign in to the same app. Under a database per tenant, set `CALLS_DB_CONNECTION` to the central connection so a call between two places meets in one table.
@@ -152,7 +158,7 @@ Event::listen(CallEnded::class, function (CallEnded $event) {
 
 ### Your own context
 
-Implement `Packstub\Calls\Contracts\CallContext` when the signed-in user does not come from a guard the config can name (a multi-tenant app, an API token): `scope()` (whose ids these are, the guard's name in the shipped context), `currentUserId()`, `findUser()`, `who()`, `canCall()`, `iceServers()`, `hasVideo()`, `maxParticipants()`. Bind it in a service provider's `register()`; the package only binds `AppContext` when nothing else is bound.
+Implement `Packstub\Calls\Contracts\CallContext` when the signed-in user does not come from a guard the config can name (a multi-tenant app, an API token): `scope()` (whose ids these are, the guard's name in the shipped context), `currentUserId()`, `findUser()`, `who()`, `canCall()`, `iceServers()`, `hasVideo()`, `maxParticipants()`. An optional `findUsers(array $ids): array` names a whole roster in one query (`AppContext` has one); without it people are looked up one by one. Bind it in a service provider's `register()`; the package only binds `AppContext` when nothing else is bound.
 
 ## The widget
 
@@ -183,7 +189,7 @@ Set `:styles="false"` and write your own stylesheet against the class names when
 The widget renders five views from template functions, `incoming` (the toast), `chip`, `window`, `tile` (one per other participant) and `notice`, each once when it appears, and keeps it current through a few `data-calls-*` hooks: `text`, `show`, `class`, `attr`, `src`, `video` and `action`. Hand in your own markup with whichever hooks you keep, from a script of your own (templates are functions, so they cannot come through the Blade attribute):
 
 ```blade
-<x-calls::widget :options="['autostart' => false]" />
+<x-calls::widget :options="['startPolling' => false]" />
 <script type="module">
     window.addEventListener('calls:ready', ({ detail: { widget } }) => {
         widget.templates.incoming = (v) => `
@@ -211,7 +217,9 @@ Calls::answer($call, 'guest:'.$request->id, $tab);
 Calls::poll('guest:'.$request->id, $after, $call->id, $tab, hold: true, kind: 'assist');
 ```
 
-A `Participant` is someone no guard knows: its id has a prefix and a colon, its name and avatar are stored on the call, and the context is not asked about it (the code that made it decided). A string with a colon is never looked up, so nobody can ring a guest from the HTTP routes, and a guest brings nobody into a call. The `kind` keeps such calls away from the widget, which polls with `kind=call`. Your own routes authenticate the guest; the package's routes stay behind `auth`.
+A `Participant` is someone no guard knows: its id has a prefix and a colon, its name and avatar are stored on the call, and the context is not asked about it (the code that made it decided). A string with a colon is never looked up, so nobody can ring a guest from the HTTP routes, and a guest brings nobody into a call. The `kind` (1 to 16 of `a-z`, `0-9`, `_` and `-`) keeps such calls away from the widget, which polls with `kind=call`. Your own routes authenticate the guest; the package's routes stay behind `auth`.
+
+When the request that sets up the call is not where its users poll from (a visitor's request setting up a call with an agent who signs in through an `admin` guard), name the users' scope: `Calls::start($agent, $guest, kind: 'assist', scope: 'admin')`, with users or `Participant`s rather than ids. Everyone's name and avatar are stored as they join, so a guest sees those instead of a lookup in the wrong user table.
 
 ### Without the widget
 
@@ -230,9 +238,11 @@ For another browser client, or another backend speaking to `@packstub/calls`:
 | `POST` | `calls/{id}/invite` `{callee}` | add someone to the call I am on; 422 when not allowed, full, or not joined yet, 409 when they are busy |
 | `POST` | `calls/{id}/signals` `{type, payload, to?}` | queue an `offer`, `answer`, `ice`, `reset` or `state` (mute, camera off, screen share) for one participant (`to`) or for everyone else (410 after the call ended) |
 | `POST` | `calls/{id}/leave` `{tab}` | a beacon as the window unloads: the side is free for the next page |
-| `GET` | `poll?after={cursor}&call={id}&tab={tab}&hold=1&kind=call` | the call I am on (held by this window when `hold` is set: its heartbeat), a call ringing me, and my new signals (each with `from`); only calls of `kind` when given |
+| `GET` | `poll?after={cursor}&call={id}&tab={tab}&hold=1&kind=call` | `{call, incoming, signals, cursor}`: the call I am on (held by this window when `hold` is set: its heartbeat), a call ringing me, and my new signals as `{id, call, type, payload, from}`; only calls of `kind` when given |
 | `GET` | `ice-servers` | `{iceServers, iceTransportPolicy}`, asked when a call starts (never cached) |
 | `GET` | `window?call={id}&callee={user}` | the widget's pop-out page: a bare page with the widget, which rings `callee` or answers `call` |
+
+The browser files are served outside `Calls::routes()`, without auth: `GET packstub-calls/assets/{index.js|widget.js|widget.css}` (named `calls.asset`); `Calls::asset('widget.js')` gives a versioned URL, cached for a year.
 
 Errors are `{message, reason}`: `reason` is `not_allowed`, `full`, `busy`, `not_ringing`, `ended` or `too_large` (413), so a client can tell the two 409s apart. Signals come only from people in the call (422 otherwise).
 
