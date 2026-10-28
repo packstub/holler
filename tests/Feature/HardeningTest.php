@@ -10,6 +10,7 @@ use Packstub\Calls\Facades\Calls;
 use Packstub\Calls\Models\Call;
 use Packstub\Calls\Models\CallParticipant;
 use Packstub\Calls\Models\CallSignal;
+use Packstub\Calls\Participant;
 use Packstub\Calls\Tests\Fixtures\User;
 
 beforeEach(function (): void {
@@ -186,4 +187,48 @@ it('tells the two 409s apart by reason', function (): void {
     Calls::hangup($call, id($this->ion));
     $this->actingAs($this->ana)->postJson(callsRoute('answer', ['call' => $call->id]))
         ->assertStatus(409)->assertJsonPath('reason', 'not_ringing');
+});
+
+it('does not mark someone missed who answered after the timeout was decided on an older copy', function (): void {
+    $call = Calls::start($this->ion, $this->ana, 'ion-1');
+    $this->travel(50)->seconds();
+    $stale = Call::query()->with('participants')->find($call->id);
+
+    Calls::answer($call, id($this->ana), 'ana-1');
+    Calls::expireCalls([$stale]);
+
+    expect(participantOf($call, $this->ana)->status)->toBe('joined')
+        ->and($call->fresh()->status)->toBe('active');
+});
+
+it('does not drop someone whose heartbeat landed after the timeout was decided', function (): void {
+    $call = Calls::start($this->ion, [$this->ana, $this->mihai], 'ion-1');
+    Calls::answer($call, id($this->ana), 'ana-1');
+    Calls::answer($call, id($this->mihai), 'mihai-1');
+    $this->travel(30)->seconds();
+    $stale = Call::query()->with('participants')->find($call->id);
+
+    CallParticipant::query()->where('call_id', $call->id)->update(['seen_at' => now()]);
+    Calls::expireCalls([$stale]);
+
+    expect($call->fresh()->live()->count())->toBe(3);
+});
+
+it('counts someone in a call with others as busy, even on a call I ring on too', function (): void {
+    $call = Calls::start($this->ion, $this->ana);
+    Calls::answer($call, id($this->ana));
+    Calls::invite($call, id($this->ion), $this->mihai);
+
+    // Mihai, still ringing on Ion and Ana's call, rings Ana directly.
+    expect(fn () => Calls::start($this->mihai, $this->ana))->toThrow(CalleeBusy::class)
+        ->and($call->fresh()->status)->toBe('active');
+});
+
+it('refuses a callee id that cannot be a key with a reason, and a kind or a guest name that would not fit', function (): void {
+    $this->actingAs($this->ion)->postJson(callsRoute('store'), ['callee' => 'abc'])->assertStatus(422)->assertJsonPath('reason', 'not_allowed');
+    $this->postJson(callsRoute('store'), ['callee' => ['x']])->assertStatus(422)->assertJsonPath('reason', 'not_allowed');
+
+    expect(Calls::findUser('abc'))->toBeNull()
+        ->and(fn () => Calls::start($this->ion, $this->ana, kind: 'Not A Kind'))->toThrow(InvalidArgumentException::class)
+        ->and(fn () => new Participant('guest:1', str_repeat('a', 256)))->toThrow(InvalidArgumentException::class);
 });

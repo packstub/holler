@@ -9,9 +9,9 @@ use Illuminate\Http\Response;
 use Illuminate\Validation\Rule;
 use Packstub\Calls\Calls;
 use Packstub\Calls\Exceptions\CallException;
+use Packstub\Calls\Exceptions\CallNotAllowed;
 use Packstub\Calls\Models\Call;
 use Packstub\Calls\Models\CallSignal;
-use Symfony\Component\HttpKernel\Exception\HttpException;
 
 /**
  * The signaling endpoints: a few JSON routes behind the app's auth. The
@@ -35,7 +35,7 @@ class CallsController
 
         foreach ($callees as $callee) {
             if (! is_scalar($callee) || strlen((string) $callee) > 64) {
-                throw new HttpException(422, __('calls::messages.cannot_call'));
+                $this->attempt(fn () => throw new CallNotAllowed(__('calls::messages.cannot_call')));
             }
         }
 
@@ -82,7 +82,7 @@ class CallsController
         $callee = $request->input('callee');
 
         if (! is_scalar($callee) || strlen((string) $callee) > 64) {
-            throw new HttpException(422, __('calls::messages.cannot_call'));
+            $this->attempt(fn () => throw new CallNotAllowed(__('calls::messages.cannot_call')));
         }
 
         $this->attempt(fn (): Call => $this->calls->invite($call, $me, (string) $callee));

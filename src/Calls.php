@@ -132,13 +132,20 @@ class Calls
      * @param  Authenticatable|Participant|string|array<int, Authenticatable|Participant|string>|null  $callees
      * @param  ?string  $tab  the caller's window, which holds the caller's side from the start
      * @param  string  $kind  `call` for the widgets; a package with its own UI names its kind and polls for it
+     * @param  ?string  $scope  whose ids the users are (default: the current context's); a call started outside
+     *                          the place its users poll from (a visitor's request ringing a panel user) names it
      *
      * @throws CallNotAllowed yourself, nobody, or someone the context says no to
      * @throws CallFull more people than `max_participants`
      * @throws CalleeBusy a callee is on another call
      */
-    public function start(Authenticatable $caller, Authenticatable|Participant|string|array|null $callees, ?string $tab = null, string $kind = Call::KIND): Call
+    public function start(Authenticatable $caller, Authenticatable|Participant|string|array|null $callees, ?string $tab = null, string $kind = Call::KIND, ?string $scope = null): Call
     {
+        if (! preg_match('/^[a-z0-9_-]{1,16}$/', $kind)) {
+            throw new \InvalidArgumentException('A call kind is 1 to 16 of a-z, 0-9, _ and -.');
+        }
+
+        $scope = substr($scope ?? $this->scope(), 0, 64);
         $me = (string) $caller->getAuthIdentifier();
         $people = $this->resolveCallees($caller, is_array($callees) ? $callees : [$callees]);
 
@@ -146,32 +153,40 @@ class Calls
             throw new CallFull(__('calls::messages.full', ['max' => $this->maxParticipants()]));
         }
 
-        $mine = $this->openCallsOf($me);
+        $mine = $this->openCallsOf($me, $scope);
 
         foreach ($people as $person) {
-            $theirs = $this->openCallsOf(static::idOf($person));
+            $id = static::idOf($person);
+            $theirs = $this->openCallsOf($id, $scope);
             // Calls nobody came back to are let go first: someone who closed every window is not busy.
             $this->expireCalls($theirs);
 
-            // A call with me on it does not count: I leave it below (two people ringing each other, say).
-            if ($theirs->contains(fn (Call $call) => ! $call->isEnded() && ! $mine->contains(fn (Call $own) => $own->is($call)))) {
+            // A call with me on it does not count when my leaving ends it, or when they only ring
+            // on it (two people ringing each other, say); a call they are in with others does.
+            $busy = $theirs->contains(fn (Call $call) => ! $call->isEnded() && (
+                ! $mine->contains(fn (Call $own) => $own->is($call))
+                || ($call->participant($id)?->isJoined() && $call->live()->count() > 2)
+            ));
+
+            if ($busy) {
                 throw new CalleeBusy(__('calls::messages.busy'));
             }
         }
 
         $mine->each(fn (Call $open) => $this->withdraw($open, $open->participant($me)));
 
-        $call = $this->transaction(function () use ($me, $people, $tab, $kind): Call {
+        $call = $this->transaction(function () use ($caller, $me, $people, $tab, $kind, $scope): Call {
             $call = Call::query()->create([
                 'caller_id' => $me,
                 'callee_id' => static::idOf($people[0]),
                 'kind' => $kind,
-                'scope' => $this->scope(),
+                'scope' => $scope,
                 'status' => Call::RINGING,
             ]);
 
             $call->participants()->create([
                 'user_id' => $me,
+                ...$this->storedName($caller),
                 'seat' => 0,
                 'status' => CallParticipant::JOINED,
                 'tab' => $tab,
@@ -183,8 +198,7 @@ class Calls
             foreach ($people as $index => $person) {
                 $call->participants()->create([
                     'user_id' => static::idOf($person),
-                    'name' => $person instanceof Participant ? $person->name : null,
-                    'avatar' => $person instanceof Participant ? $person->avatar : null,
+                    ...$this->storedName($person),
                     'seat' => $index + 1,
                     'status' => CallParticipant::RINGING,
                     'invited_at' => now(),
@@ -220,10 +234,16 @@ class Calls
 
         [$person] = $inviter ? $this->resolveCallees($inviter, [$callee]) : [null];
 
+        // Calls the invitee walked away from, let go before the lock: never two calls locked at once.
+        if ($person) {
+            $this->expireCalls($this->openCallsOf(static::idOf($person), $call->scope));
+        }
+
         // Every check runs again under a lock on the call: two invites at once must not
         // share a seat (between two participants the lower seat offers), pass the cap
         // together, or both insert the same person.
         $this->transaction(function () use ($call, $byUserId, $person): void {
+            // $person is null only on an ended call, refused below.
             $this->lock($call);
 
             if ($call->isEnded()) {
@@ -245,10 +265,7 @@ class Calls
                 throw new CallFull(__('calls::messages.full', ['max' => $this->maxParticipants()]));
             }
 
-            $theirs = $this->openCallsOf($personId);
-            $this->expireCalls($theirs);
-
-            if ($theirs->contains(fn (Call $other) => ! $other->isEnded())) {
+            if ($this->openCallsOf($personId, $call->scope)->isNotEmpty()) {
                 throw new CalleeBusy(__('calls::messages.busy'));
             }
 
@@ -264,9 +281,9 @@ class Calls
 
             // Someone who left or declined earlier rings again, at a new seat.
             if ($existing) {
-                $existing->forceFill($attributes)->save();
+                $existing->forceFill([...$attributes, ...$this->storedName($person)])->save();
             } else {
-                $call->participants()->create(['user_id' => $personId, ...$attributes]);
+                $call->participants()->create(['user_id' => $personId, ...$attributes, ...$this->storedName($person)]);
             }
         });
 
@@ -291,7 +308,7 @@ class Calls
                 throw new CallNotRinging(__('calls::messages.not_ringing'));
             }
 
-            if ($this->openCallsOf($userId)->contains(fn (Call $other) => ! $other->is($call) && $other->participant($userId)?->isJoined())) {
+            if ($this->openCallsOf($userId, $call->scope)->contains(fn (Call $other) => ! $other->is($call) && $other->participant($userId)?->isJoined())) {
                 throw new CalleeBusy(__('calls::messages.busy'));
             }
 
@@ -347,15 +364,26 @@ class Calls
      */
     public function withdraw(Call $call, ?CallParticipant $participant, ?string $status = null): void
     {
+        $this->withdrawIf($call, $participant, $status);
+    }
+
+    /**
+     * Withdraw only when `$still` holds for the participant as stored now: a timeout
+     * decided on a copy read before an answer or a heartbeat landed must not act on it.
+     *
+     * @param  ?\Closure(CallParticipant): bool  $still
+     */
+    protected function withdrawIf(Call $call, ?CallParticipant $participant, ?string $status = null, ?\Closure $still = null): void
+    {
         if (! $participant) {
             return;
         }
 
-        [$left, $reason] = $this->transaction(function () use ($call, $participant, $status): array {
+        [$left, $reason] = $this->transaction(function () use ($call, $participant, $status, $still): array {
             $this->lock($call);
             $participant = $call->participant($participant->user_id);
 
-            if ($call->isEnded() || ! $participant?->isLive()) {
+            if ($call->isEnded() || ! $participant?->isLive() || ($still && ! $still($participant, $call))) {
                 return [null, null];
             }
 
@@ -481,15 +509,18 @@ class Calls
         $ringDeadline = now()->subSeconds((int) config('packstub-calls.ring_timeout', 45));
         $dropDeadline = now()->subSeconds((int) config('packstub-calls.reconnect_timeout', 15));
 
+        // A side that never named a window has not polled since it joined.
+        $missed = fn (CallParticipant $participant): bool => $participant->isRinging() && $participant->invited_at?->lt($ringDeadline) === true;
+        $dropped = fn (CallParticipant $participant, Call $call): bool => $participant->isJoined() && $call->isActive()
+            && ($participant->seen_at ?? $participant->joined_at)?->lt($dropDeadline) === true;
+
         foreach ($calls as $call) {
             foreach ($call->live() as $participant) {
-                // A side that never named a window has not polled since it joined.
-                $seen = $participant->seen_at ?? $participant->joined_at;
-
-                if ($participant->isRinging() && $participant->invited_at?->lt($ringDeadline)) {
-                    $this->withdraw($call, $participant, CallParticipant::MISSED);
-                } elseif ($participant->isJoined() && $call->isActive() && $seen?->lt($dropDeadline)) {
-                    $this->withdraw($call, $participant, CallParticipant::DROPPED);
+                // Decided on this copy, checked again on the row under the lock.
+                if ($missed($participant)) {
+                    $this->withdrawIf($call, $participant, CallParticipant::MISSED, $missed);
+                } elseif ($dropped($participant, $call)) {
+                    $this->withdrawIf($call, $participant, CallParticipant::DROPPED, $dropped);
                 }
             }
         }
@@ -561,13 +592,13 @@ class Calls
      * people of the current context's scope (its guard), so two guards whose ids
      * overlap never share a call. A participant made in code is found in any.
      */
-    public function openCallsOf(string $userId): Collection
+    public function openCallsOf(string $userId, ?string $scope = null): Collection
     {
         return Call::query()
             ->with('participants')
             ->where('status', '!=', Call::ENDED)
             ->where($this->involving($userId))
-            ->when(! Participant::isGuestId($userId), fn (Builder $query) => $query->where('scope', $this->scope()))
+            ->when(! Participant::isGuestId($userId), fn (Builder $query) => $query->where('scope', $scope ?? $this->scope()))
             ->latest('id')
             ->get();
     }
@@ -594,12 +625,14 @@ class Calls
     public function present(Call $call, string $me, ?string $tab = null): array
     {
         $mine = $call->participant($me);
-        // Participants made in code carry their own name; only users are looked up.
-        $people = $this->whoAre($call->peersOf($me)->filter(fn (CallParticipant $peer) => $peer->name === null)->pluck('user_id')->all());
+        // Users are looked up afresh only from their own scope (another guard's table would name a
+        // stranger); a guest, or anyone outside it, sees the names stored when people joined.
+        $lookUp = ! Participant::isGuestId($me) && $call->scope === $this->scope();
+        $people = $this->whoAre($lookUp ? $call->peersOf($me)->reject(fn (CallParticipant $peer) => Participant::isGuestId($peer->user_id))->pluck('user_id')->all() : []);
 
         foreach ($call->peersOf($me) as $peer) {
-            if ($peer->name !== null) {
-                $people[$peer->user_id] = ['id' => $peer->user_id, 'name' => $peer->name, 'avatar' => $peer->avatar];
+            if (! isset($people[$peer->user_id])) {
+                $people[$peer->user_id] = ['id' => $peer->user_id, 'name' => $peer->name ?? __('calls::messages.someone'), 'avatar' => $peer->avatar];
             }
         }
 
@@ -729,6 +762,18 @@ class Calls
 
         $call->setRawAttributes($fresh->getAttributes(), true);
         $call->setRelation('participants', $call->participants()->get());
+    }
+
+    /**
+     * The name and avatar stored with a participant: what a guest sees of them.
+     *
+     * @return array{name: ?string, avatar: ?string}
+     */
+    protected function storedName(Authenticatable|Participant $person): array
+    {
+        $who = $person instanceof Participant ? $person->toArray() : $this->who($person);
+
+        return ['name' => mb_substr((string) $who['name'], 0, 255), 'avatar' => isset($who['avatar']) ? mb_substr((string) $who['avatar'], 0, 2048) : null];
     }
 
     protected static function idOf(Authenticatable|Participant $person): string

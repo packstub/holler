@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\DB;
+use Packstub\Calls\AppContext;
 use Packstub\Calls\Exceptions\CallNotAllowed;
 use Packstub\Calls\Exceptions\SignalTooLarge;
 use Packstub\Calls\Facades\Calls;
@@ -120,7 +121,7 @@ it('keeps the tables on the configured connection', function (): void {
 });
 
 it('hands a signed-in user the ICE servers when a call starts, never cached', function (): void {
-    app(\Packstub\Calls\AppContext::class)->iceServersUsing(fn () => [['urls' => 'turn:t.example.com', 'username' => 'u'.now()->timestamp, 'credential' => 'c']]);
+    app(AppContext::class)->iceServersUsing(fn () => [['urls' => 'turn:t.example.com', 'username' => 'u'.now()->timestamp, 'credential' => 'c']]);
 
     $this->getJson(callsRoute('ice'))->assertUnauthorized();
     $this->actingAs($this->ion)->getJson(callsRoute('ice'))
@@ -128,4 +129,22 @@ it('hands a signed-in user the ICE servers when a call starts, never cached', fu
         ->assertHeader('Cache-Control', 'no-store, private')
         ->assertJsonPath('iceServers.0.urls', 'turn:t.example.com')
         ->assertJsonPath('iceTransportPolicy', 'all');
+});
+
+it('starts a call in a scope of its choosing and shows a guest the names stored at the start', function (): void {
+    config()->set('auth.guards.staff', ['driver' => 'session', 'provider' => 'users']);
+
+    // A visitor's request (default guard) rings an agent who polls from the staff guard.
+    $call = Calls::start($this->ana, $this->guest, kind: 'assist', scope: 'staff');
+    expect($call->scope)->toBe('staff')
+        ->and(participantOf($call, $this->ana)->name)->toBe('Ana');
+
+    // Ana is renamed; the guest still sees the name stored with the call, never a lookup in its own guard.
+    $this->ana->forceFill(['name' => 'Ana Popescu'])->save();
+    Calls::answer($call, 'guest:7f9c', 'v-1');
+    expect(Calls::poll('guest:7f9c', 0, $call->id, 'v-1', true)['call']['peer']['name'])->toBe('Ana');
+
+    config()->set('packstub-calls.guard', 'staff');
+    expect(Calls::poll((string) $this->ana->getKey(), 0, $call->id)['call']['peer']['name'])->toBe('Visitor on /checkout')
+        ->and(Calls::openCallsOf((string) $this->ana->getKey()))->toHaveCount(1);
 });

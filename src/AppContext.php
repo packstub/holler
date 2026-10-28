@@ -115,7 +115,13 @@ class AppContext implements CallContext
 
     public function findUser(string $id): ?Authenticatable
     {
-        $user = $this->guard()->getProvider()?->retrieveById($id);
+        $provider = $this->guard()->getProvider();
+
+        if (! static::couldBeKey($provider, $id)) {
+            return null;
+        }
+
+        $user = $provider?->retrieveById($id);
 
         return $user instanceof Authenticatable ? $user : null;
     }
@@ -137,7 +143,7 @@ class AppContext implements CallContext
      */
     public static function retrieveMany(?UserProvider $provider, array $ids): array
     {
-        $ids = array_values(array_unique($ids));
+        $ids = array_values(array_filter(array_unique($ids), fn (string $id) => static::couldBeKey($provider, $id)));
 
         if ($ids === []) {
             return [];
@@ -151,6 +157,21 @@ class AppContext implements CallContext
             array_map(fn (string $id) => $provider?->retrieveById($id), $ids),
             fn ($user) => $user instanceof Authenticatable,
         ));
+    }
+
+    /**
+     * Whether an id can be a key of the provider's model: an integer key takes digits only
+     * (Postgres refuses to compare anything else and the request would fail).
+     */
+    public static function couldBeKey(?UserProvider $provider, string $id): bool
+    {
+        if (! $provider instanceof EloquentUserProvider) {
+            return true;
+        }
+
+        $model = $provider->createModel();
+
+        return ! in_array($model->getKeyType(), ['int', 'integer'], true) || ctype_digit($id);
     }
 
     public function who(Authenticatable $user): array

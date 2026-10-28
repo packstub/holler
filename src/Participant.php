@@ -21,6 +21,10 @@ final class Participant
         if (! self::isGuestId($id) || strlen($id) > 64) {
             throw new InvalidArgumentException('A participant id is a prefix, a colon and up to 64 characters in all, like "guest:<uuid>".');
         }
+
+        if (mb_strlen($name) > 255 || strlen((string) $avatar) > 2048) {
+            throw new InvalidArgumentException('A participant name is up to 255 characters, an avatar URL up to 2048.');
+        }
     }
 
     /** Whether this id names a participant made in code rather than a user (it has a colon). */
