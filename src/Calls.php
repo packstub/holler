@@ -133,7 +133,9 @@ class Calls
      * @param  ?string  $tab  the caller's window, which holds the caller's side from the start
      * @param  string  $kind  `call` for the widgets; a package with its own UI names its kind and polls for it
      * @param  ?string  $scope  whose ids the users are (default: the current context's); a call started outside
-     *                          the place its users poll from (a visitor's request ringing a panel user) names it
+     *                          the place its users poll from (a visitor's request ringing a panel user) names it,
+     *                          and then takes users or Participants, not ids; `canCall()` and `who()` still run
+     *                          in the current context
      *
      * @throws CallNotAllowed yourself, nobody, or someone the context says no to
      * @throws CallFull more people than `max_participants`
@@ -147,7 +149,14 @@ class Calls
 
         $scope = substr($scope ?? $this->scope(), 0, 64);
         $me = (string) $caller->getAuthIdentifier();
-        $people = $this->resolveCallees($caller, is_array($callees) ? $callees : [$callees]);
+        $list = is_array($callees) ? $callees : [$callees];
+
+        // A string id would be looked up in the current context's guard, not the call's.
+        if ($scope !== $this->scope() && collect($list)->contains(fn ($callee) => is_string($callee) || is_int($callee))) {
+            throw new CallNotAllowed(__('calls::messages.cannot_call'));
+        }
+
+        $people = $this->resolveCallees($caller, $list);
 
         if (count($people) + 1 > $this->maxParticipants()) {
             throw new CallFull(__('calls::messages.full', ['max' => $this->maxParticipants()]));

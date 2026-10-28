@@ -148,3 +148,8 @@ it('starts a call in a scope of its choosing and shows a guest the names stored 
     expect(Calls::poll((string) $this->ana->getKey(), 0, $call->id)['call']['peer']['name'])->toBe('Visitor on /checkout')
         ->and(Calls::openCallsOf((string) $this->ana->getKey()))->toHaveCount(1);
 });
+
+it('takes no user ids for a call in another scope: they would be looked up in the wrong guard', function (): void {
+    expect(fn () => Calls::start($this->ana, (string) $this->ion->getKey(), scope: 'staff'))->toThrow(\Packstub\Calls\Exceptions\CallNotAllowed::class)
+        ->and(Calls::start($this->ana, $this->guest, kind: 'assist', scope: 'staff')->scope)->toBe('staff');
+});
