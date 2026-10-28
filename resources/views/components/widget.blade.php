@@ -39,8 +39,6 @@
         'popOut' => $popOut,
         'inPopOut' => $inPopOut,
         'csrf' => csrf_token(),
-        // Asked from the `ice` route when a call starts, so short-lived TURN credentials stay fresh.
-        'iceServers' => 'signaling',
         'iceTransportPolicy' => \Packstub\Calls\Facades\Calls::rtcConfiguration()['iceTransportPolicy'],
         'kind' => \Packstub\Calls\Models\Call::KIND,
         'video' => $context->hasVideo(),
