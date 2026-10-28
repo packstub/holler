@@ -21,6 +21,7 @@ it('binds the app context by default and answers from the config', function (): 
         ->and(app(CallContext::class))->toBe(app(AppContext::class))
         ->and(Calls::context()->iceServers())->toBe([['urls' => 'stun:stun.l.google.com:19302']])
         ->and(Calls::context()->hasVideo())->toBeTrue()
+        ->and(Calls::context()->maxParticipants())->toBe(4)
         ->and(Calls::currentUserId())->toBeNull();
 
     config()->set('packstub-calls.video', false);
@@ -65,14 +66,15 @@ it('runs calls through the service without HTTP', function (): void {
 
     expect($call)->toBeInstanceOf(Call::class)
         ->and($call->isRinging())->toBeTrue()
-        ->and($call->caller_tab)->toBe('win-a')
+        ->and($call->participant((string) $this->ion->getKey())->tab)->toBe('win-a')
         ->and(Calls::openCallsOf((string) $this->ana->getKey())->count())->toBe(1);
 
     Calls::answer($call, (string) $this->ana->getKey(), 'ana-1');
     expect($call->isActive())->toBeTrue();
 
     $signal = Calls::signal($call, (string) $this->ion->getKey(), 'offer', ['sdp' => 'v=0']);
-    expect($signal->to_user_id)->toBe((string) $this->ana->getKey());
+    expect($signal->to_user_id)->toBe((string) $this->ana->getKey())
+        ->and($signal->from_user_id)->toBe((string) $this->ion->getKey());
 
     $poll = Calls::poll((string) $this->ana->getKey(), 0, $call->id, 'ana-1', true);
     expect($poll['signals'])->toHaveCount(1)

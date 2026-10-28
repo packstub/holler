@@ -90,4 +90,18 @@ return [
 
     'video' => (bool) env('CALLS_VIDEO', true),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Group calls
+    |--------------------------------------------------------------------------
+    |
+    | People on one call, the caller included. The browsers connect to each
+    | other directly (a full mesh), and each one uploads its media once per
+    | other participant, which is fine up to about four people. Raise it only
+    | with a browser topology that relays through a server.
+    |
+    */
+
+    'max_participants' => (int) env('CALLS_MAX_PARTICIPANTS', 4),
+
 ];

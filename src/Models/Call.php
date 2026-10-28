@@ -2,6 +2,7 @@
 
 namespace Packstub\Calls\Models;
 
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
@@ -9,16 +10,13 @@ use Illuminate\Support\Carbon;
 /**
  * @property int $id
  * @property string $caller_id
- * @property string $callee_id
+ * @property string $callee_id the first person called; everyone is in `participants`
  * @property string $status
  * @property ?string $end_reason
- * @property ?string $caller_tab
- * @property ?string $callee_tab
- * @property ?Carbon $caller_seen_at
- * @property ?Carbon $callee_seen_at
  * @property ?Carbon $answered_at
  * @property ?Carbon $ended_at
  * @property Carbon $created_at
+ * @property-read Collection<int, CallParticipant> $participants
  */
 class Call extends Model
 {
@@ -36,8 +34,6 @@ class Call extends Model
     protected $casts = [
         'answered_at' => 'datetime',
         'ended_at' => 'datetime',
-        'caller_seen_at' => 'datetime',
-        'callee_seen_at' => 'datetime',
     ];
 
     public function signals(): HasMany
@@ -45,14 +41,41 @@ class Call extends Model
         return $this->hasMany(CallSignal::class);
     }
 
-    public function involves(string $userId): bool
+    public function participants(): HasMany
     {
-        return $this->caller_id === $userId || $this->callee_id === $userId;
+        return $this->hasMany(CallParticipant::class)->orderBy('seat');
     }
 
-    public function peerOf(string $userId): string
+    /** This person's record on the call, whatever their status; null for a bystander. */
+    public function participant(string $userId): ?CallParticipant
     {
-        return $this->caller_id === $userId ? $this->callee_id : $this->caller_id;
+        return $this->participants->first(fn (CallParticipant $participant) => $participant->user_id === $userId);
+    }
+
+    /** Whether this person is (or was) on the call. */
+    public function involves(string $userId): bool
+    {
+        return $this->participant($userId) !== null;
+    }
+
+    /** Everyone still on the call (ringing or in), lowest seat first. */
+    public function live(): Collection
+    {
+        return $this->participants->filter(fn (CallParticipant $participant) => $participant->isLive())->values();
+    }
+
+    /** Everyone on the call but this person, lowest seat first, gone ones included. */
+    public function peersOf(string $userId): Collection
+    {
+        return $this->participants->reject(fn (CallParticipant $participant) => $participant->user_id === $userId)->values();
+    }
+
+    /** The other side of a 1-on-1 call: the first live other person, or the first other person. */
+    public function peerOf(string $userId): ?string
+    {
+        $peers = $this->peersOf($userId);
+
+        return ($peers->first(fn (CallParticipant $peer) => $peer->isLive()) ?? $peers->first())?->user_id;
     }
 
     /** 'caller' or 'callee'. */
@@ -74,52 +97,6 @@ class Call extends Model
     public function isEnded(): bool
     {
         return $this->status === self::ENDED;
-    }
-
-    /** Whether a live window holds this side: a tab is set and polled within HOLD_SECONDS. */
-    public function isHeld(string $side): bool
-    {
-        return $this->{"{$side}_tab"} !== null
-            && $this->{"{$side}_seen_at"}?->gt(now()->subSeconds(self::HOLD_SECONDS)) === true;
-    }
-
-    /**
-     * Give this user's side to a window: free, already its own, or left by a window
-     * that stopped polling. One UPDATE, so two windows polling at once cannot both win.
-     * Returns whether the window holds the side now; sets $reclaimed when it took
-     * over from another (or no) window.
-     */
-    public function claim(string $userId, string $tab, ?bool &$reclaimed = null): bool
-    {
-        $side = $this->sideOf($userId);
-        $previous = $this->{"{$side}_tab"};
-        $heldBefore = $this->{"{$side}_seen_at"} !== null;
-
-        $claimed = static::query()->whereKey($this->getKey())
-            ->where(fn ($query) => $query
-                ->whereNull("{$side}_tab")
-                ->orWhere("{$side}_tab", $tab)
-                ->orWhere("{$side}_seen_at", '<', now()->subSeconds(self::HOLD_SECONDS)))
-            ->update(["{$side}_tab" => $tab, "{$side}_seen_at" => now()]) === 1;
-
-        if ($claimed) {
-            $this->forceFill(["{$side}_tab" => $tab, "{$side}_seen_at" => now()])->syncOriginal();
-        }
-
-        // Taking over from another window (or one that left) is a reclaim; a side nobody ever held is not.
-        $reclaimed = $claimed && $heldBefore && $previous !== $tab;
-
-        return $claimed;
-    }
-
-    /** The window lets go of its side (the page unloads); the last-seen time stays for the timeout. */
-    public function release(string $userId, string $tab): void
-    {
-        $side = $this->sideOf($userId);
-
-        if ($this->{"{$side}_tab"} === $tab) {
-            $this->forceFill(["{$side}_tab" => null])->save();
-        }
     }
 
     /** Seconds the call ran, null for a call that was never answered. */

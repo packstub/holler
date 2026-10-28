@@ -40,4 +40,7 @@ interface CallContext
 
     /** Whether calls start with the camera on (either side can still turn it off or share a screen). */
     public function hasVideo(): bool;
+
+    /** People on one call, the caller included; a full mesh is good for about four. */
+    public function maxParticipants(): int;
 }

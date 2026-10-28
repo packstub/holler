@@ -3,8 +3,10 @@
 namespace Packstub\Calls;
 
 use Closure;
+use Illuminate\Auth\EloquentUserProvider;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Contracts\Auth\Guard;
+use Illuminate\Contracts\Auth\UserProvider;
 use Packstub\Calls\Contracts\CallContext;
 
 /**
@@ -27,6 +29,8 @@ class AppContext implements CallContext
     protected array|Closure|null $iceServers = null;
 
     protected bool|Closure|null $video = null;
+
+    protected int|Closure|null $maxParticipants = null;
 
     // ------------------------------------------------------------------
     // Configuration
@@ -80,6 +84,14 @@ class AppContext implements CallContext
         return $this;
     }
 
+    /** People on one call, the caller included. Overrides the `max_participants` config key. */
+    public function maxParticipantsUsing(int|Closure|null $max): static
+    {
+        $this->maxParticipants = $max;
+
+        return $this;
+    }
+
     // ------------------------------------------------------------------
     // CallContext
     // ------------------------------------------------------------------
@@ -101,6 +113,39 @@ class AppContext implements CallContext
         $user = $this->guard()->getProvider()?->retrieveById($id);
 
         return $user instanceof Authenticatable ? $user : null;
+    }
+
+    /**
+     * Several people at once (one query on an Eloquent provider), for the roster of a call.
+     *
+     * @param  array<int, string>  $ids
+     * @return array<int, Authenticatable>
+     */
+    public function findUsers(array $ids): array
+    {
+        return static::retrieveMany($this->guard()->getProvider(), $ids);
+    }
+
+    /**
+     * @param  array<int, string>  $ids
+     * @return array<int, Authenticatable>
+     */
+    public static function retrieveMany(?UserProvider $provider, array $ids): array
+    {
+        $ids = array_values(array_unique($ids));
+
+        if ($ids === []) {
+            return [];
+        }
+
+        if ($provider instanceof EloquentUserProvider) {
+            return $provider->createModel()->newQuery()->whereKey($ids)->get()->all();
+        }
+
+        return array_values(array_filter(
+            array_map(fn (string $id) => $provider?->retrieveById($id), $ids),
+            fn ($user) => $user instanceof Authenticatable,
+        ));
     }
 
     public function who(Authenticatable $user): array
@@ -135,5 +180,12 @@ class AppContext implements CallContext
         $video = $this->video instanceof Closure ? ($this->video)() : $this->video;
 
         return (bool) ($video ?? config('packstub-calls.video', true));
+    }
+
+    public function maxParticipants(): int
+    {
+        $max = $this->maxParticipants instanceof Closure ? ($this->maxParticipants)() : $this->maxParticipants;
+
+        return (int) ($max ?? config('packstub-calls.max_participants', 4));
     }
 }

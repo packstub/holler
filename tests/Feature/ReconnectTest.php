@@ -5,6 +5,8 @@ use Packstub\Calls\Models\CallSignal;
 use Packstub\Calls\Tests\Fixtures\User;
 
 beforeEach(function (): void {
+    // Seen-at times are stored to the second: a frozen clock keeps the arithmetic exact.
+    $this->freezeSecond();
     $this->ion = user('Ion');
     $this->ana = user('Ana');
 });
@@ -34,7 +36,7 @@ it('hands a side to the window that started the call and tells other windows it 
 
     // Naming the call does not let it take the side away from a live window.
     pollAs($this->ion, ['call' => $call->id, 'tab' => 'main', 'hold' => 1])->assertJsonPath('call.held', true);
-    expect($call->fresh()->caller_tab)->toBe('win-a');
+    expect(participantOf($call, $this->ion)->tab)->toBe('win-a');
 });
 
 it('does not hand a side to a tab that only watches the call', function (): void {
@@ -42,10 +44,10 @@ it('does not hand a side to a tab that only watches the call', function (): void
 
     // Ana's main tab opened a pop-out to answer and keeps polling for the chip: the side stays free for the pop-out.
     pollAs($this->ana, ['call' => $call->id, 'tab' => 'ana-main'])->assertJsonPath('call.status', 'ringing')->assertJsonPath('call.held', false);
-    expect($call->fresh()->callee_tab)->toBeNull();
+    expect(participantOf($call, $this->ana)->tab)->toBeNull();
 
     pollAs($this->ana, ['call' => $call->id, 'tab' => 'ana-pop', 'hold' => 1])->assertJsonPath('call.held', false);
-    expect($call->fresh()->callee_tab)->toBe('ana-pop');
+    expect(participantOf($call, $this->ana)->tab)->toBe('ana-pop');
 
     pollAs($this->ana, ['call' => $call->id, 'tab' => 'ana-main'])->assertJsonPath('call.held', true);
 });
@@ -57,7 +59,7 @@ it('lets a new page claim the side after the old one left, skipping the signals 
 
     // The beacon as the page unloads: a form post, no JSON.
     $this->actingAs($this->ion)->post(callsRoute('leave', ['call' => $call]), ['tab' => 'win-a'])->assertNoContent();
-    expect($call->fresh()->caller_tab)->toBeNull();
+    expect(participantOf($call, $this->ion)->tab)->toBeNull();
 
     // The other side sees the window gone but the call still active.
     pollAs($this->ana, ['call' => $call->id, 'tab' => 'ana-1', 'hold' => 1])->assertJsonPath('call.status', 'active')->assertJsonPath('call.peer_held', false);
@@ -65,7 +67,7 @@ it('lets a new page claim the side after the old one left, skipping the signals 
     // The reloaded page polls without naming the call, is handed it unheld, then names it and takes the side.
     pollAs($this->ion, ['tab' => 'win-b'])->assertJsonPath('call.id', $call->id)->assertJsonPath('call.held', false);
     $response = pollAs($this->ion, ['call' => $call->id, 'tab' => 'win-b', 'hold' => 1])->assertJsonPath('call.held', false)->assertJsonCount(0, 'signals');
-    expect($call->fresh()->caller_tab)->toBe('win-b')
+    expect(participantOf($call, $this->ion)->tab)->toBe('win-b')
         ->and($response->json('cursor'))->toBe(CallSignal::query()->max('id'));
 
     // New signals reach the new page from here on.
@@ -82,7 +84,7 @@ it('treats a window that stopped polling as gone and lets another take the side'
     $this->travel(Call::HOLD_SECONDS + 1)->seconds();
 
     pollAs($this->ion, ['call' => $call->id, 'tab' => 'win-b', 'hold' => 1])->assertJsonPath('call.held', false)->assertJsonPath('call.peer_seen_ago', Call::HOLD_SECONDS + 1);
-    expect($call->fresh()->caller_tab)->toBe('win-b');
+    expect(participantOf($call, $this->ion)->tab)->toBe('win-b');
 });
 
 it('ends a call as lost when one side stays away past the reconnect timeout', function (): void {
@@ -102,5 +104,5 @@ it('ignores a leave from a window that does not hold the side', function (): voi
 
     $this->actingAs($this->ion)->post(callsRoute('leave', ['call' => $call]), ['tab' => 'someone-else'])->assertNoContent();
 
-    expect($call->fresh()->caller_tab)->toBe('win-a');
+    expect(participantOf($call, $this->ion)->tab)->toBe('win-a');
 });
