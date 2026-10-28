@@ -215,7 +215,7 @@ A `Participant` is someone no guard knows: its id has a prefix and a colon, its 
 
 ### Without the widget
 
-The engine alone, for a UI of your own or a framework component: `import { CallClient, HttpSignaling } from '{{ Calls::asset('index.js') }}'` (or `npm install @packstub/calls`) and give it the eight routes, the CSRF token, `Calls::context()->iceServers()`, `hasVideo()` and `maxParticipants()`. Its README documents the events (`incoming`, `localstream`, `remotestream`, `peers`, `statechange`, `ended`) and controls (`callUser`, `invite`, `accept`, `decline`, `hangUp`, `setMuted`, `setCameraOff`, `shareScreen`).
+The engine alone, for a UI of your own or a framework component: `import { CallClient, HttpSignaling } from '{{ Calls::asset('index.js') }}'` (or `npm install @packstub/calls`) and give it the nine routes, the CSRF token, `Calls::context()->iceServers()`, `hasVideo()` and `maxParticipants()`. Its README documents the events (`incoming`, `localstream`, `remotestream`, `peers`, `statechange`, `ended`) and controls (`callUser`, `invite`, `accept`, `decline`, `hangUp`, `setMuted`, `setCameraOff`, `shareScreen`).
 
 ## The endpoints
 
