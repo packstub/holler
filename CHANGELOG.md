@@ -22,13 +22,14 @@ First release: the signaling backend for WebRTC calls between the users of a Lar
 - The call JSON: `id`, `kind`, `status`, `end_reason`, `role`, `seat`, `joined`, `peers` (id, name, avatar, seat, status, held, seen_ago), `held`, `answered_at`, plus `peer`, `peer_held` and `peer_seen_ago` for the first live peer, so a 1-on-1 client needs nothing else.
 - `calls`, `call_participants` and `call_signals` tables, indexed for the queries every poll runs; `Call`, `CallParticipant` and `CallSignal` models; `CALLS_DB_CONNECTION` puts them on one connection, for a database per tenant.
 - Events: `CallStarted`, `CallAnswered` (when the first person joins), `ParticipantJoined`, `ParticipantLeft` and `CallEnded`.
-- `calls:prune` ends the calls everybody walked away from and deletes ended calls older than `CALLS_PRUNE_AFTER_DAYS` (90) with their participants and signals.
+- `calls:prune` ends the calls everybody walked away from and deletes ended calls older than `CALLS_PRUNE_AFTER_DAYS` (90) with their participants and signals; `--days` overrides the age for one run.
+- Config `packstub-calls.php` with `CALLS_*` env variables: STUN and TURN (`CALLS_STUN_URL`, `CALLS_TURN_URL`, `CALLS_TURN_USERNAME`, `CALLS_TURN_CREDENTIAL`), poll intervals (`CALLS_POLL_IDLE`, `CALLS_POLL_ACTIVE`), ring and reconnect timeouts, `CALLS_VIDEO`, the `guard`. Requires Laravel 12.69+ or 13.30+.
 
 ### Who is who
 
 - `CallContext` contract: `scope()`, `currentUserId()`, `findUser()`, `who()`, `canCall()`, `iceServers()`, `hasVideo()` and `maxParticipants()`. `AppContext` implements it for a plain Laravel app from the `packstub-calls` config and `canCallUsing()`, `userNameUsing()`, `userAvatarUsing()`, `iceServersUsing()`, `video()` and `maxParticipantsUsing()`; it is bound only when nothing else is, so a panel package can bring its own.
 - Calls are kept apart by scope (the guard's name in `AppContext`): two guards with overlapping ids never ring each other.
-- `Calls::whoAre()` names a whole roster in one query through `AppContext::findUsers()`.
+- `Calls::whoAre()` names a whole roster in one query through `AppContext::findUsers()` (`AppContext::retrieveMany()` does the same for any user provider). Calling yourself is always refused.
 
 ### Guests and kinds
 
