@@ -23,7 +23,7 @@ composer lint               # Pint
 
 ## Conventions
 
-- PHP 8.3+, Laravel 12 and 13. Every change needs a Pest test and a `CHANGELOG.md` line; the tag is `v<version>` on `main`, the release workflow takes the notes from the tag's section.
+- PHP 8.3+, Laravel 12 and 13. Every change needs a Pest test and a `CHANGELOG.md` line; the tag is `v<version>` on `main`, the release workflow takes the notes from the tag's section. Keep the section short and human, since the workflow appends GitHub's list of merged pull requests under it: an optional lead sentence, then at most about six one-line bullets saying what a user gets, in plain words (class or method names only when a user needs the name, never lists of them). Always keep breaking changes with an `**Upgrading:**` line, security or privacy fixes, new minimum versions and migrations to run; CI, tests and refactors stay out.
 - Nothing here may import from `Filament\` or `Livewire\`; what needs a panel belongs in `packstub/filament-calls`.
 - User ids are strings everywhere (`caller_id`, `callee_id`, `user_id`, `from_user_id`, `to_user_id`, the JSON), so integer and UUID keys both work.
 - The route names (`{as}poll`…), the JSON shapes of `present()` and `poll()`, the signal types and the `CallContext` methods are shared with `filament-calls` and `@packstub/calls` (its `FakeServer` mirrors the rules); they must not change inside a major. Schema changes follow the workspace rule (final shape in `create_*`, guarded `add_*`); the 2026-10-28 move to `call_participants` edited `create_calls_table` in place because nothing was tagged or installed yet.
