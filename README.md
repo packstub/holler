@@ -1,6 +1,12 @@
 # Calls for Laravel
 
+![Calls for Laravel: a group video call in a floating window over a People page with a Call button on every row](https://raw.githubusercontent.com/packstub/art/main/calls/banner.jpg)
+
 Audio, video and screen-share calls between the users of a Laravel app, one on one or in small groups (up to four by default), peer to peer over WebRTC. The media goes straight from one browser to the other; Laravel only handles who calls whom and relays the few signaling messages the browsers need to find each other. Polling over plain HTTP, so there is no websocket server to run.
+
+![Ion calls Ana from her row on the Team page, she answers, and the call window shows her video with his in the corner](https://raw.githubusercontent.com/packstub/art/main/filament-calls/docs/calls.gif)
+
+<sub>Shown in a Filament panel, with [Filament Calls](https://github.com/packstub/filament-calls). Without Filament, the same call runs on any page through `<x-calls::button />` and `<x-calls::widget />`.</sub>
 
 This package is the server side (the `calls`, `call_participants` and `call_signals` tables, the JSON routes, the `Calls` service, a `CallContext` that decides who is who and who may call whom, events) plus the two Blade components that put calls on any page: `<x-calls::widget />` and `<x-calls::button />`. The browser side is [`@packstub/calls`](https://github.com/packstub/calls-js), a framework-agnostic engine and widget, served by this package. [Filament Calls](https://github.com/packstub/filament-calls) puts the same engine into a Filament panel, with a `CallAction` and a widget of its own; use that one if your app is a panel.
 
