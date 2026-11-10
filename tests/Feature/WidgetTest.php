@@ -84,3 +84,7 @@ it('keeps the pop-out page out of other sites\' frames', function (): void {
         ->assertHeader('X-Frame-Options', 'SAMEORIGIN')
         ->assertHeader('Content-Security-Policy', "frame-ancestors 'self'");
 });
+
+it('renders no widget for a visitor who is not signed in', function (): void {
+    expect(trim(Blade::render('<x-calls::widget />')))->toBe('');
+});

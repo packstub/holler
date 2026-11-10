@@ -10,6 +10,8 @@
       options  extra CallWidget options, e.g. ['labels' => [...], 'root' => null]; `templates` and
                `icons` cannot be JSON, pass those from a script of your own (see the README)
       name     the global the widget is kept in (window.calls), for your own scripts
+
+    Renders nothing for a visitor who is not signed in, so it can sit in a layout the login page shares.
 --}}
 @props([
     'routes' => 'calls.',
@@ -20,6 +22,7 @@
     'inPopOut' => false,
 ])
 
+@if (\Packstub\Calls\Facades\Calls::currentUserId() !== null)
 @php
     $context = \Packstub\Calls\Facades\Calls::context();
     $popOut ??= (bool) config('packstub-calls.pop_out', true);
@@ -58,3 +61,4 @@
     window['{{ $name }}'] = new CallWidget({!! json_encode($config, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_THROW_ON_ERROR) !!})
     window.dispatchEvent(new CustomEvent('calls:ready', { detail: { widget: window['{{ $name }}'] } }))
 </script>
+@endif

@@ -53,7 +53,7 @@ Put the widget in your layout, once, and a button wherever there is someone to c
 <x-calls::button :user="$user" />
 ```
 
-That is the whole setup. The widget draws the incoming-call toast, the call window (a tile per person, your own picture, mute, camera, screen share, hang up) and short notices; the button rings that person, or adds them to the call you are on. Each call opens in a small window of its own, so the page can navigate, reload or close while the call goes on, and shows a chip with the timer meanwhile (`CALLS_POP_OUT=false` keeps the call in the page instead, right for a single-page app). The stylesheet and the ES modules are served by the package: nothing to publish, no bundler.
+That is the whole setup (the widget renders nothing for someone who is not signed in, so a layout shared with the login page is fine). The widget draws the incoming-call toast, the call window (a tile per person, your own picture, mute, camera, screen share, hang up) and short notices; the button rings that person, or adds them to the call you are on. Each call opens in a small window of its own, so the page can navigate, reload or close while the call goes on, and shows a chip with the timer meanwhile (`CALLS_POP_OUT=false` keeps the call in the page instead, right for a single-page app). The stylesheet and the ES modules are served by the package: nothing to publish, no bundler.
 
 The widget is [`@packstub/calls`](https://github.com/packstub/calls-js)'s `CallWidget` over its `CallClient`; both are plain ES modules without a framework, so the same engine runs in a Filament panel through [Filament Calls](https://github.com/packstub/filament-calls). Section [The widget](#the-widget) shows how to restyle it, change its markup, or use the engine without it.
 
