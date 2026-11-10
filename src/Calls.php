@@ -20,6 +20,7 @@ use Packstub\Calls\Exceptions\CallHasEnded;
 use Packstub\Calls\Exceptions\CallNotAllowed;
 use Packstub\Calls\Exceptions\CallNotRinging;
 use Packstub\Calls\Exceptions\SignalTooLarge;
+use Packstub\Calls\Exceptions\TooManySignals;
 use Packstub\Calls\Http\AssetController;
 use Packstub\Calls\Http\CallsController;
 use Packstub\Calls\Http\PopOutController;
@@ -465,6 +466,7 @@ class Calls
      * @throws CallHasEnded
      * @throws CallNotAllowed the sender is not in the call, or `$to` is not on it
      * @throws SignalTooLarge the payload is above `max_signal_kb`
+     * @throws TooManySignals more than `max_pending_signals` of the sender's are still unread
      */
     public function signal(Call $call, string $fromUserId, string $type, array $payload, ?string $to = null): ?CallSignal
     {
@@ -477,6 +479,7 @@ class Calls
         }
 
         $this->assertSignalFits($payload);
+        $this->assertRoomForSignals($call, $fromUserId);
 
         $recipients = $call->live()->filter(fn (CallParticipant $participant) => $participant->user_id !== $fromUserId);
 
@@ -572,6 +575,11 @@ class Calls
 
         if ($current && $currentId && $tab && $hold && ! $current->isEnded() && $current->participant($me)->isLive()) {
             $held = $current->participant($me)->claim($tab, $reclaimed);
+
+            // The window that holds the side read everything up to its cursor: those signals are done with.
+            if ($held && $after > 0) {
+                CallSignal::query()->where('call_id', $current->getKey())->where('to_user_id', $me)->where('id', '<=', $after)->delete();
+            }
 
             if ($reclaimed) {
                 // A fresh page starts after the signals meant for the old connection (its own
@@ -752,6 +760,21 @@ class Calls
 
         if ($kb > 0 && strlen((string) json_encode($payload)) > $kb * 1024) {
             throw new SignalTooLarge(__('calls::messages.too_large', ['kb' => $kb]));
+        }
+    }
+
+    /**
+     * Signals are deleted once read (and all of them when the call ends), so only the unread
+     * ones count: someone who keeps sending to people who never read cannot fill the table.
+     *
+     * @throws TooManySignals
+     */
+    protected function assertRoomForSignals(Call $call, string $fromUserId): void
+    {
+        $max = (int) config('packstub-calls.max_pending_signals', 500);
+
+        if ($max > 0 && CallSignal::query()->where('call_id', $call->getKey())->where('from_user_id', $fromUserId)->count() >= $max) {
+            throw new TooManySignals(__('calls::messages.too_many'));
         }
     }
 

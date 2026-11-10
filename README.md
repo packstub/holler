@@ -126,13 +126,13 @@ ICE candidates show each side's network addresses to the other. To keep them hid
 
 ### Polling and timeouts
 
-Every open window asks the server for incoming calls every 5 seconds and, during a call, for signals every second; that poll is also the heartbeat that tells the other side you are still there. `config/packstub-calls.php`: `CALLS_POLL_IDLE` and `CALLS_POLL_ACTIVE` (milliseconds), `CALLS_RING_TIMEOUT` (seconds before a call is marked missed, default 45), `CALLS_RECONNECT_TIMEOUT` (seconds a side may be away before the call ends as lost, default 15), `guard` (the guard people are signed in with, default guard when null), `CALLS_MAX_SIGNAL_KB` (the largest signal the server relays, 64 KB; a session description is a few).
+Every open window asks the server for incoming calls every 5 seconds and, during a call, for signals every second; that poll is also the heartbeat that tells the other side you are still there. `config/packstub-calls.php`: `CALLS_POLL_IDLE` and `CALLS_POLL_ACTIVE` (milliseconds), `CALLS_RING_TIMEOUT` (seconds before a call is marked missed, default 45), `CALLS_RECONNECT_TIMEOUT` (seconds a side may be away before the call ends as lost, default 15), `guard` (the guard people are signed in with, default guard when null), `CALLS_MAX_SIGNAL_KB` (the largest signal the server relays, 64 KB; a session description is a few), `CALLS_MAX_PENDING_SIGNALS` (how many signals from one person may wait unread on a call, 500; past it the server answers 429).
 
 The routes take whatever middleware you pass to `Calls::routes()`; add a `throttle` there if your app throttles its other JSON routes (a window polls once a second during a call).
 
 ### Keeping the tables small
 
-Signals are deleted when their call ends. Calls everybody walked away from, and ended calls older than `CALLS_PRUNE_AFTER_DAYS` (90; null keeps the log forever), go with `calls:prune`; schedule it daily:
+Signals are deleted once the other side's window read them, and all of them when their call ends. Calls everybody walked away from, and ended calls older than `CALLS_PRUNE_AFTER_DAYS` (90; null keeps the log forever), go with `calls:prune`; schedule it daily:
 
 ```php
 Schedule::command('calls:prune')->daily();
@@ -250,7 +250,7 @@ For another browser client, or another backend speaking to `@packstub/calls`:
 
 The browser files are served outside `Calls::routes()`, without auth: `GET packstub-calls/assets/{index.js|widget.js|widget.css}` (named `calls.asset`); `Calls::asset('widget.js')` gives a versioned URL, cached for a year.
 
-Errors are `{message, reason}`: `reason` is `not_allowed`, `full`, `busy`, `not_ringing`, `ended` or `too_large` (413), so a client can tell the two 409s apart. Signals come only from people in the call (422 otherwise).
+Errors are `{message, reason}`: `reason` is `not_allowed`, `full`, `busy`, `not_ringing`, `ended`, `too_large` (413) or `too_many` (429), so a client can tell the two 409s apart. Signals come only from people in the call (422 otherwise).
 
 A call is `{id, kind, status, end_reason, role, seat, joined, peers: [{id, name, avatar, seat, status, held, seen_ago}], peer, peer_held, peer_seen_ago, held, answered_at}`; `peer` and its two fields describe the first live peer, for a 1-on-1 client. Every window has a random `tab` id; a participant's side belongs to one window at a time, and a window that stops polling for 5 seconds loses it. A fresh page claims the side, sends `reset` and a new offer to each peer, and they build new connections for it. Per-call routes answer 403 to anyone who is not on the call.
 

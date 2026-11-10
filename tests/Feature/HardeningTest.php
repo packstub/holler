@@ -232,3 +232,39 @@ it('refuses a callee id that cannot be a key with a reason, and a kind or a gues
         ->and(fn () => Calls::start($this->ion, $this->ana, kind: 'Not A Kind'))->toThrow(InvalidArgumentException::class)
         ->and(fn () => new Participant('guest:1', str_repeat('a', 256)))->toThrow(InvalidArgumentException::class);
 });
+
+it('deletes the signals a window read, and refuses more once too many wait unread', function (): void {
+    config()->set('packstub-calls.max_pending_signals', 3);
+    $call = Calls::start($this->ion, $this->ana, 'ion-1');
+    Calls::answer($call, id($this->ana), 'ana-1');
+
+    foreach (range(1, 3) as $n) {
+        Calls::signal($call, id($this->ion), 'ice', ['n' => $n]);
+    }
+
+    $this->actingAs($this->ion)->postJson(callsRoute('signal', ['call' => $call->id]), ['type' => 'ice', 'payload' => ['n' => 4]])
+        ->assertStatus(429)->assertJsonPath('reason', 'too_many');
+
+    // Ana's window reads them; its next poll, with the cursor, lets go of them.
+    $read = Calls::poll(id($this->ana), 0, $call->id, 'ana-1', true);
+    expect($read['signals'])->toHaveCount(3)->and(CallSignal::query()->count())->toBe(3);
+
+    // A poll that does not hold the side deletes nothing.
+    Calls::poll(id($this->ana), $read['cursor'], $call->id, 'ana-2', true);
+    expect(CallSignal::query()->count())->toBe(3);
+
+    Calls::poll(id($this->ana), $read['cursor'], $call->id, 'ana-1', true);
+    expect(CallSignal::query()->count())->toBe(0)
+        ->and(Calls::signal($call, id($this->ion), 'ice', ['n' => 4]))->not->toBeNull();
+
+    // Ion's own signals to Ana are not Ana's to delete for him, and nothing else is touched.
+    Calls::signal($call, id($this->ana), 'ice', ['n' => 'a']);
+    Calls::poll(id($this->ana), PHP_INT_MAX, $call->id, 'ana-1', true);
+    expect(CallSignal::query()->pluck('from_user_id')->all())->toBe([id($this->ana)]);
+
+    config()->set('packstub-calls.max_pending_signals', 0);
+    foreach (range(1, 5) as $n) {
+        Calls::signal($call, id($this->ion), 'ice', ['n' => $n]);
+    }
+    expect(CallSignal::query()->count())->toBe(6);
+});

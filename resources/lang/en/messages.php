@@ -10,4 +10,5 @@ return [
     'join_first' => 'Join the call before adding people to it.',
     'not_on_call' => 'That person is not on this call.',
     'too_large' => 'This signal is larger than :kb KB.',
+    'too_many' => 'Too many signals are waiting to be read on this call.',
 ];

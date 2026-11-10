@@ -78,6 +78,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Unread signals
+    |--------------------------------------------------------------------------
+    |
+    | A signal is deleted once the window holding the other side read it.
+    | This many signals from one person may wait unread on a call; past it the
+    | server answers 429 until they are read. A call needs a few dozen; 0
+    | turns the check off.
+    |
+    */
+
+    'max_pending_signals' => (int) env('CALLS_MAX_PENDING_SIGNALS', 500),
+
+    /*
+    |--------------------------------------------------------------------------
     | Polling
     |--------------------------------------------------------------------------
     |
