@@ -12,3 +12,4 @@ First release of Calls for Laravel: the signaling backend for WebRTC calls betwe
 - A `CallContext` contract decides who may call whom; `AppContext` covers a plain Laravel app
 - STUN and TURN from config or fresh per call, events for every step and `calls:prune` for old calls
 - `<x-calls::widget />` and `<x-calls::button />` put calls on any page, with nothing to publish or bundle
+- The pop-out page cannot be framed by another site, so a hidden frame cannot trick someone into answering a call

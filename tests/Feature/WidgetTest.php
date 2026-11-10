@@ -77,3 +77,10 @@ it('opens the pop-out page for a call of mine only', function (): void {
     $this->actingAs($this->ion)->get(callsRoute('window', ['call' => 999]))->assertNotFound();
     expect(Call::query()->count())->toBe(1);
 });
+
+it('keeps the pop-out page out of other sites\' frames', function (): void {
+    $this->actingAs($this->ion)->get(callsRoute('window'))
+        ->assertOk()
+        ->assertHeader('X-Frame-Options', 'SAMEORIGIN')
+        ->assertHeader('Content-Security-Policy', "frame-ancestors 'self'");
+});
