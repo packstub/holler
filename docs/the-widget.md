@@ -11,7 +11,7 @@ The widget is the `CallWidget` from [`@packstub/calls`](https://github.com/packs
 | `routes` | `calls.` | the route name prefix given to `Calls::routes()` |
 | `pop-out` | `CALLS_POP_OUT` (true) | open each call in a window of its own, with a chip on the page |
 | `styles` | `true` | load the package stylesheet; `false` to bring your own |
-| `options` | `[]` | more `CallWidget` options, merged over the ones the component builds: `labels`, `video`, `windowFeatures`, `callSelector` and the rest |
+| `options` | `[]` | more `CallWidget` options, merged key by key over the ones the component builds: `labels`, `video`, `windowFeatures`, `callSelector` and the rest |
 | `name` | `calls` | the global the widget is kept in, `window.calls`, for your own scripts |
 
 ```blade
@@ -77,7 +77,7 @@ The widget's labels ship in English. Publish them to change a text or add a lang
 php artisan vendor:publish --tag=calls-translations
 ```
 
-They land in `lang/vendor/calls/en/ui.php` (the widget) and `messages.php` (the server's messages, such as "This person is on another call."); copy them to `lang/vendor/calls/<locale>/` for another language, and the app's locale picks them up. The widget gets its labels from these files. `options` can set them too, but a `labels` array passed there replaces all the translated ones, so change texts in the files.
+They land in `lang/vendor/calls/en/ui.php` (the widget) and `messages.php` (the server's messages, such as "This person is on another call."); copy them to `lang/vendor/calls/<locale>/` for another language, and the app's locale picks them up. The widget gets its labels from these files. `options` can change a few for one page (`:options="['labels' => ['accept' => 'Pick up']]"`); the rest keep their translations.
 
 ## Your own markup
 

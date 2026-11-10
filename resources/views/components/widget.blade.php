@@ -26,7 +26,8 @@
 @php
     $context = \Packstub\Calls\Facades\Calls::context();
     $popOut ??= (bool) config('packstub-calls.pop_out', true);
-    $config = array_replace([
+    // Recursive, so a partial `labels` (or `poll`) keeps the rest: the translations, the configured pace.
+    $config = array_replace_recursive([
         'routes' => [
             'poll' => route($routes.'poll'),
             'store' => route($routes.'store'),

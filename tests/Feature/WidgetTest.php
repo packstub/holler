@@ -55,6 +55,17 @@ it('keeps the call in the page when the pop-out is off, and takes options and a 
         ->assertSee('"accept":"Pick up"', false);
 });
 
+it('keeps the other translated texts when options change only some labels', function (): void {
+    $html = (string) $this->actingAs($this->ion)->blade('<x-calls::widget :options="[\'labels\' => [\'accept\' => \'Pick up\']]" />');
+
+    preg_match('/new CallWidget\((\{.*\})\)/', $html, $match);
+    $labels = json_decode($match[1], true, flags: JSON_THROW_ON_ERROR)['labels'];
+
+    expect($labels['accept'])->toBe('Pick up')
+        ->and($labels['decline'])->toBe(__('calls::ui.decline'))
+        ->and(array_keys($labels))->toEqualCanonicalizing(array_keys(__('calls::ui')));
+});
+
 it('renders a call button for anyone but yourself', function (): void {
     $this->actingAs($this->ion)->blade('<x-calls::button :user="$ana" class="btn" />', ['ana' => $this->ana])
         ->assertSee('data-calls-call="'.$this->ana->getKey().'"', false)
