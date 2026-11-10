@@ -47,11 +47,14 @@ class Calls
     /**
      * Register the nine JSON routes and the widget's pop-out page under `{prefix}/`, named `{as}poll`, `{as}store`…
      *
-     * @param  array<int, string> | string  $middleware
+     * @param  array<int, string> | string | null  $middleware  null: `auth`, on the `guard` from the config when one is set
      * @param  bool  $window  also the widget's pop-out page, `GET {prefix}/window`
      */
-    public function routes(string $prefix = 'calls', array|string $middleware = 'auth', string $as = 'calls.', bool $window = true): void
+    public function routes(string $prefix = 'calls', array|string|null $middleware = null, string $as = 'calls.', bool $window = true): void
     {
+        $guard = config('packstub-calls.guard');
+        $middleware ??= filled($guard) ? 'auth:'.$guard : 'auth';
+
         Route::prefix($prefix)->name($as)->middleware($middleware)->group(function () use ($window): void {
             Route::get('poll', [CallsController::class, 'poll'])->name('poll');
             // Asked when a call starts, so short-lived TURN credentials are fresh for each call.

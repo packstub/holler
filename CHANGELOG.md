@@ -18,3 +18,4 @@ First release of Calls for Laravel: the signaling backend for WebRTC calls betwe
 - `Calls::end()` refuses a reason longer than the 16 characters the column holds, instead of failing in the database
 - `<x-calls::widget />` renders nothing for visitors who are not signed in
 - An answer, hang-up or invite that meets a database deadlock is tried again instead of failing
+- `Calls::routes()` signs people in through the `guard` from the config when one is set

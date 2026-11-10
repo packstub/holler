@@ -35,7 +35,7 @@ Register the routes, for example in `routes/web.php`:
 ```php
 use Packstub\Calls\Facades\Calls;
 
-Calls::routes();                                        // /calls/… behind `auth`, named calls.*
+Calls::routes();                                        // /calls/… behind `auth` (on the `guard` from the config, if set), named calls.*
 Calls::routes(prefix: 'team/calls', middleware: ['auth', 'verified'], as: 'team.calls.');
 ```
 

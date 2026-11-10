@@ -8,7 +8,8 @@ return [
     |--------------------------------------------------------------------------
     |
     | The guard that signs people in where calls happen: the signed-in user and
-    | the callee are looked up through it. Leave null for the default guard.
+    | the callee are looked up through it, and `Calls::routes()` puts its
+    | routes behind `auth:<guard>`. Leave null for the default guard.
     | Inside a Filament panel the panel's own guard is used instead.
     |
     */
