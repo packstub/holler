@@ -435,9 +435,17 @@ class Calls
         }
     }
 
-    /** End a call with a reason (idempotent): its signals are deleted and CallEnded fires once. */
+    /**
+     * End a call with a reason (idempotent): its signals are deleted and CallEnded fires once.
+     *
+     * @param  string  $reason  up to 16 characters, like the shipped ones (`hung_up`, `failed`…)
+     */
     public function end(Call $call, string $reason): void
     {
+        if ($reason === '' || strlen($reason) > 16) {
+            throw new \InvalidArgumentException('An end reason is 1 to 16 characters.');
+        }
+
         $ended = $this->transaction(function () use ($call, $reason): bool {
             $this->lock($call);
 

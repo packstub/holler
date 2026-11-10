@@ -153,7 +153,7 @@ Event::listen(CallEnded::class, function (CallEnded $event) {
     $event->call->caller_id;     // user ids as strings, so integer and UUID keys both fit
     $event->call->callee_id;     // the first person called
     $event->call->participants;  // everyone, with seat, status (joined, left, declined, missed, dropped) and times
-    $event->call->end_reason;    // declined | cancelled | missed | hung_up | failed | dropped
+    $event->call->end_reason;    // declined | cancelled | missed | hung_up | dropped, or what your code passed to Calls::end()
     $event->call->duration();    // seconds, null if never answered
 });
 ```

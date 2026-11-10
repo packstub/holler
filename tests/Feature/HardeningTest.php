@@ -268,3 +268,17 @@ it('deletes the signals a window read, and refuses more once too many wait unrea
     }
     expect(CallSignal::query()->count())->toBe(6);
 });
+
+it('takes an end reason that fits the column, and ends a call once', function (): void {
+    Event::fake([CallEnded::class]);
+    $call = Calls::start($this->ion, $this->ana);
+
+    expect(fn () => Calls::end($call, str_repeat('a', 17)))->toThrow(InvalidArgumentException::class)
+        ->and($call->fresh()->status)->toBe('ringing');
+
+    Calls::end($call, 'failed');
+    Calls::end($call, 'failed');
+
+    expect($call->fresh()->end_reason)->toBe('failed');
+    Event::assertDispatchedTimes(CallEnded::class, 1);
+});
