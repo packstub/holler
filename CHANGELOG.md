@@ -13,3 +13,4 @@ First release of Calls for Laravel: the signaling backend for WebRTC calls betwe
 - STUN and TURN from config or fresh per call, events for every step and `calls:prune` for old calls
 - `<x-calls::widget />` and `<x-calls::button />` put calls on any page, with nothing to publish or bundle
 - The pop-out page cannot be framed by another site, so a hidden frame cannot trick someone into answering a call
+- Signals reach the other side byte for byte, so Firefox's last ICE candidate no longer shows an error

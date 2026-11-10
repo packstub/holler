@@ -2,6 +2,7 @@
 
 namespace Packstub\Calls;
 
+use Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull;
 use Illuminate\Foundation\Http\Middleware\TrimStrings;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -43,8 +44,11 @@ class CallsServiceProvider extends PackageServiceProvider
         // The engine, the widget and its stylesheet, served from the package: nothing to publish or bundle.
         Route::get('packstub-calls/assets/{file}', AssetController::class)->where('file', '[a-z]+\.(js|css)')->name('calls.asset');
 
-        // A session description ends in CRLF and the parser wants it there: no trimming on signals.
+        // Signals are relayed byte for byte: a session description ends in CRLF and the parser wants
+        // it there, and Firefox ends its candidates with `candidate: ""`, which must not become null.
         // Matches the default routes (`calls/{id}/signals`) and any prefix that ends in "calls".
-        TrimStrings::skipWhen(fn (Request $request): bool => $request->is('*calls/*/signals'));
+        $signals = fn (Request $request): bool => $request->is('*calls/*/signals');
+        TrimStrings::skipWhen($signals);
+        ConvertEmptyStringsToNull::skipWhen($signals);
     }
 }

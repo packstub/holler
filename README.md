@@ -39,7 +39,7 @@ Calls::routes();                                        // /calls/… behind `au
 Calls::routes(prefix: 'team/calls', middleware: ['auth', 'verified'], as: 'team.calls.');
 ```
 
-`window: false` leaves out the widget's pop-out page (`GET {prefix}/window`), for a package that draws a window of its own. Keep the prefix ending in `calls`: the package skips `TrimStrings` on `*calls/*/signals`, since a session description must keep its trailing CRLF.
+`window: false` leaves out the widget's pop-out page (`GET {prefix}/window`), for a package that draws a window of its own. Keep the prefix ending in `calls`: the package skips `TrimStrings` and `ConvertEmptyStringsToNull` on `*calls/*/signals`, since signals are relayed byte for byte (a session description keeps its trailing CRLF, Firefox's last ICE candidate is an empty string).
 
 The migration runs from the package; the config file is optional (`php artisan vendor:publish --tag=calls-config`), most of its keys read the `CALLS_*` variables below.
 
