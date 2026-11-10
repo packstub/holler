@@ -39,7 +39,7 @@ Calls::routes();                                        // /calls/… behind `au
 Calls::routes(prefix: 'team/calls', middleware: ['auth', 'verified'], as: 'team.calls.');
 ```
 
-`window: false` leaves out the widget's pop-out page (`GET {prefix}/window`), for a package that draws a window of its own. Keep the prefix ending in `calls`: the package skips `TrimStrings` and `ConvertEmptyStringsToNull` on `*calls/*/signals`, since signals are relayed byte for byte (a session description keeps its trailing CRLF, Firefox's last ICE candidate is an empty string).
+Register them inside the `web` middleware group (as everything in `routes/web.php` is): the endpoints rely on the session for the signed-in user and on the CSRF token the widget sends. `window: false` leaves out the widget's pop-out page (`GET {prefix}/window`), for a package that draws a window of its own. Keep the prefix ending in `calls`: the package skips `TrimStrings` and `ConvertEmptyStringsToNull` on `*calls/*/signals`, since signals are relayed byte for byte (a session description keeps its trailing CRLF, Firefox's last ICE candidate is an empty string).
 
 The migration runs from the package; the config file is optional (`php artisan vendor:publish --tag=calls-config`), most of its keys read the `CALLS_*` variables below.
 
@@ -246,7 +246,7 @@ For another browser client, or another backend speaking to `@packstub/calls`:
 | `POST` | `calls/{id}/leave` `{tab}` | a beacon as the window unloads: the side is free for the next page |
 | `GET` | `poll?after={cursor}&call={id}&tab={tab}&hold=1&kind=call` | `{call, incoming, signals, cursor}`: the call I am on (held by this window when `hold` is set: its heartbeat), a call ringing me, and my new signals as `{id, call, type, payload, from}`; only calls of `kind` when given |
 | `GET` | `ice-servers` | `{iceServers, iceTransportPolicy}`, asked when a call starts (never cached) |
-| `GET` | `window?call={id}&callee={user}` | the widget's pop-out page: a bare page with the widget, which rings `callee` or answers `call` |
+| `GET` | `window?call={id}&callee={user}` | the widget's pop-out page: a bare page with the widget, which rings `callee` or answers `call` when the widget opened it (a link on its own only shows the call); never shown inside another site's frame |
 
 The browser files are served outside `Calls::routes()`, without auth: `GET packstub-calls/assets/{index.js|widget.js|widget.css}` (named `calls.asset`); `Calls::asset('widget.js')` gives a versioned URL, cached for a year.
 
