@@ -282,3 +282,20 @@ it('takes an end reason that fits the column, and ends a call once', function ()
     expect($call->fresh()->end_reason)->toBe('failed');
     Event::assertDispatchedTimes(CallEnded::class, 1);
 });
+
+it('tries a state change again after a deadlock', function (): void {
+    $call = Calls::start($this->ion, $this->ana);
+    $attempts = 0;
+
+    Event::listen('eloquent.saving: '.CallParticipant::class, function () use (&$attempts): void {
+        if (++$attempts === 1) {
+            throw new PDOException('Deadlock found when trying to get lock; try restarting transaction');
+        }
+    });
+
+    Calls::answer($call, id($this->ana), 'ana-1');
+
+    expect($attempts)->toBe(2)
+        ->and(participantOf($call, $this->ana)->status)->toBe('joined')
+        ->and($call->fresh()->status)->toBe('active');
+});

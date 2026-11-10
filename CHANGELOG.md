@@ -17,3 +17,4 @@ First release of Calls for Laravel: the signaling backend for WebRTC calls betwe
 - Signals are deleted as soon as they are read, and one person can leave at most `CALLS_MAX_PENDING_SIGNALS` (500) unread on a call
 - `Calls::end()` refuses a reason longer than the 16 characters the column holds, instead of failing in the database
 - `<x-calls::widget />` renders nothing for visitors who are not signed in
+- An answer, hang-up or invite that meets a database deadlock is tried again instead of failing

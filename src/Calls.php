@@ -794,7 +794,9 @@ class Calls
      */
     protected function transaction(callable $callback): mixed
     {
-        return DB::connection((new Call)->getConnectionName())->transaction($callback);
+        // A deadlock (a hang-up deleting the signals while a signal is written) is tried again:
+        // every callback re-reads the call under its lock first, so a second run decides afresh.
+        return DB::connection((new Call)->getConnectionName())->transaction($callback, 3);
     }
 
     /**
