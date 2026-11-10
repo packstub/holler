@@ -162,6 +162,12 @@ class Calls
 
         $people = $this->resolveCallees($caller, $list);
 
+        // Everyone on a group call sees and hears everyone else: each pair of callees must be allowed too.
+        $users = array_values(array_filter($people, fn ($person) => $person instanceof Authenticatable));
+        foreach ($users as $i => $user) {
+            $this->assertMayMeet($user, array_slice($users, 0, $i));
+        }
+
         if (count($people) + 1 > $this->maxParticipants()) {
             throw new CallFull(__('calls::messages.full', ['max' => $this->maxParticipants()]));
         }
@@ -246,6 +252,14 @@ class Calls
         }
 
         [$person] = $inviter ? $this->resolveCallees($inviter, [$callee]) : [null];
+
+        // The newcomer meets everyone already on the call, not only the person who brings them in.
+        if ($person instanceof Authenticatable) {
+            $this->assertMayMeet($person, $call->live()
+                ->reject(fn (CallParticipant $participant) => $participant->user_id === $byUserId || Participant::isGuestId($participant->user_id))
+                ->map(fn (CallParticipant $participant) => $this->findUser($participant->user_id))
+                ->filter());
+        }
 
         // Calls the invitee walked away from, let go before the lock: never two calls locked at once.
         if ($person) {
@@ -762,6 +776,24 @@ class Calls
         }
 
         return array_values($people);
+    }
+
+    /**
+     * `canCall()` between someone joining a call and each person already on it (either way round
+     * is asked once, the newcomer as the callee), so a group never puts together two people the
+     * context keeps apart: two tenants, say, that only the caller shares.
+     *
+     * @param  iterable<Authenticatable>  $others
+     *
+     * @throws CallNotAllowed
+     */
+    protected function assertMayMeet(Authenticatable $newcomer, iterable $others): void
+    {
+        foreach ($others as $other) {
+            if ((string) $other->getAuthIdentifier() !== (string) $newcomer->getAuthIdentifier() && ! $this->context()->canCall($other, $newcomer)) {
+                throw new CallNotAllowed(__('calls::messages.cannot_call'));
+            }
+        }
     }
 
     /** @throws SignalTooLarge */

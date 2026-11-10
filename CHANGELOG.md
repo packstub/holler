@@ -9,6 +9,6 @@ First release of Calls for Laravel: the signaling backend for WebRTC calls betwe
 - A `Calls` service to ring one person or a group (up to 4 by default), invite, answer, decline and hang up
 - `Calls::routes()` for the JSON endpoints, with your own prefix, name and middleware (`auth` on the configured guard by default)
 - Calls survive a page load, and missed or dropped people are handled without ending the call for the others
-- A `CallContext` contract decides who may call whom; `AppContext` covers a plain Laravel app
+- A `CallContext` contract decides who may call whom, asked for every pair on a group call; `AppContext` covers a plain Laravel app
 - STUN and TURN from config or fresh per call, events for every step, signals deleted once read and `calls:prune` for old calls
 - `<x-calls::widget />` and `<x-calls::button />` put calls on any page, with nothing to publish or bundle; the pop-out page never shows inside another site's frame

@@ -311,3 +311,23 @@ it('runs a group through the service without HTTP', function (): void {
         ->and(Calls::openCallsOf((string) $this->ion->getKey()))->toHaveCount(0)
         ->and(Calls::openCallsOf((string) $this->dana->getKey()))->toHaveCount(1);
 });
+
+it('asks canCall between every pair on a group call, not only between the caller and each callee', function (): void {
+    // Ion and Dana work with everyone, Ana and Mihai only with them: two teams that must never meet.
+    $teams = ['Ion' => ['a', 'b'], 'Dana' => ['a', 'b'], 'Ana' => ['a'], 'Mihai' => ['b']];
+    app(AppContext::class)->canCallUsing(fn (User $caller, User $callee): bool => array_intersect($teams[$caller->name], $teams[$callee->name]) !== []);
+
+    // A group start that would put Ana and Mihai together is refused, and nobody is rung.
+    $this->actingAs($this->ion)->postJson(callsRoute('store'), ['callees' => [$this->ana->getKey(), $this->mihai->getKey()], 'tab' => 'ion-1'])->assertStatus(422);
+    expect(Call::query()->count())->toBe(0);
+
+    // Ion and Ana on a call: Ion may ring Mihai on his own, but not into a call with Ana.
+    $call = ringGroup($this->ion, [$this->ana]);
+    answerAs($this->ana, $call, 'ana-1')->assertOk();
+    $this->actingAs($this->ion)->postJson(callsRoute('invite', ['call' => $call]), ['callee' => $this->mihai->getKey()])->assertStatus(422);
+
+    // Dana shares a team with both: she can be brought in.
+    $this->actingAs($this->ion)->postJson(callsRoute('invite', ['call' => $call]), ['callee' => $this->dana->getKey()])->assertOk();
+
+    app(AppContext::class)->canCallUsing(null);
+});

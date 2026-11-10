@@ -69,7 +69,7 @@ use Packstub\Calls\AppContext;
 app(AppContext::class)->canCallUsing(fn (User $caller, User $callee): bool => $caller->team_id === $callee->team_id);
 ```
 
-The check runs on the server when a call starts, whatever the browser asked for.
+The check runs on the server when a call starts and when someone is added to one, whatever the browser asked for. On a group call it runs for every pair: each callee with the caller and with each other, and someone added with everyone already on the call, so a group never puts together two people your rule keeps apart.
 
 ### How people appear to each other
 
