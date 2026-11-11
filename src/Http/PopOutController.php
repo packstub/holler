@@ -2,8 +2,8 @@
 
 namespace Packstub\Calls\Http;
 
-use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Packstub\Calls\Facades\Calls;
 use Packstub\Calls\Models\Call;
 
@@ -15,7 +15,7 @@ use Packstub\Calls\Models\Call;
  */
 class PopOutController
 {
-    public function __invoke(Request $request): View
+    public function __invoke(Request $request): Response
     {
         $callId = (int) $request->query('call', 0);
 
@@ -27,6 +27,11 @@ class PopOutController
             abort_unless($call->involves($me) && Calls::inScope($call, $me), 403);
         }
 
-        return view('calls::window', ['routes' => $request->route()->getName() ? preg_replace('/window$/', '', $request->route()->getName()) : 'calls.']);
+        $routes = $request->route()->getName() ? preg_replace('/window$/', '', $request->route()->getName()) : 'calls.';
+
+        // Never inside another site's frame: a hidden frame could make a click answer a call.
+        return response()->view('calls::window', ['routes' => $routes])
+            ->header('X-Frame-Options', 'SAMEORIGIN')
+            ->header('Content-Security-Policy', "frame-ancestors 'self'");
     }
 }

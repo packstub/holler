@@ -201,6 +201,16 @@ it('keeps a session description byte for byte, trailing CRLF included', function
     expect($this->actingAs($this->ana)->getJson(callsRoute('poll', ['call' => $call->id, 'tab' => 'tab', 'hold' => 1]))->json('signals.0.payload.sdp'))->toBe($sdp);
 });
 
+it('keeps an empty ICE candidate empty: Firefox ends its candidates with one', function (): void {
+    $call = ring($this->ion, $this->ana);
+    $this->actingAs($this->ana)->postJson(callsRoute('answer', ['call' => $call]));
+
+    $this->actingAs($this->ion)->postJson(callsRoute('signal', ['call' => $call]), ['type' => 'ice', 'payload' => ['candidate' => '', 'sdpMid' => '0', 'sdpMLineIndex' => 0]])->assertCreated();
+
+    expect($this->actingAs($this->ana)->getJson(callsRoute('poll', ['call' => $call->id, 'tab' => 'tab', 'hold' => 1]))->json('signals.0.payload'))
+        ->toBe(['candidate' => '', 'sdpMid' => '0', 'sdpMLineIndex' => 0]);
+});
+
 it('names the other side "Someone" when their account is gone', function (): void {
     $call = ring($this->ion, $this->ana);
     $this->ana->delete();

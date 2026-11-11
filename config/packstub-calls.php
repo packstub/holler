@@ -8,7 +8,8 @@ return [
     |--------------------------------------------------------------------------
     |
     | The guard that signs people in where calls happen: the signed-in user and
-    | the callee are looked up through it. Leave null for the default guard.
+    | the callee are looked up through it, and `Calls::routes()` puts its
+    | routes behind `auth:<guard>`. Leave null for the default guard.
     | Inside a Filament panel the panel's own guard is used instead.
     |
     */
@@ -75,6 +76,20 @@ return [
     */
 
     'max_signal_kb' => (int) env('CALLS_MAX_SIGNAL_KB', 64),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Unread signals
+    |--------------------------------------------------------------------------
+    |
+    | A signal is deleted once the window holding the other side read it.
+    | This many signals from one person may wait unread on a call; past it the
+    | server answers 429 until they are read. A call needs a few dozen; 0
+    | turns the check off.
+    |
+    */
+
+    'max_pending_signals' => (int) env('CALLS_MAX_PENDING_SIGNALS', 500),
 
     /*
     |--------------------------------------------------------------------------

@@ -5,7 +5,7 @@ namespace Packstub\Calls\Facades;
 use Illuminate\Support\Facades\Facade;
 
 /**
- * @method static void routes(string $prefix = 'calls', array|string $middleware = 'auth', string $as = 'calls.', bool $window = true)
+ * @method static void routes(string $prefix = 'calls', array|string|null $middleware = null, string $as = 'calls.', bool $window = true)
  * @method static string asset(string $file)
  * @method static \Packstub\Calls\Contracts\CallContext context()
  * @method static ?string currentUserId()

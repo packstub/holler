@@ -123,4 +123,13 @@ it('uses the configured guard to find people', function (): void {
 
     expect(Calls::currentUserId())->toBe((string) $this->ion->getKey())
         ->and(Calls::findUser((string) $this->ana->getKey())?->name)->toBe('Ana');
+
+    // The routes sign people in through the same guard unless told otherwise.
+    Route::middleware('web')->group(fn () => Calls::routes(prefix: 'staff/calls', as: 'staff.calls.'));
+    Route::middleware('web')->group(fn () => Calls::routes(prefix: 'open/calls', middleware: 'auth', as: 'open.calls.'));
+    app('router')->getRoutes()->refreshNameLookups();
+
+    expect(app('router')->getRoutes()->getByName('staff.calls.poll')->middleware())->toBe(['web', 'auth:staff'])
+        ->and(app('router')->getRoutes()->getByName('open.calls.poll')->middleware())->toBe(['web', 'auth']);
+    $this->actingAs($this->ion, 'staff')->getJson('/staff/calls/poll')->assertOk();
 });

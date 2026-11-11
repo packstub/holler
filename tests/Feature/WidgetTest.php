@@ -55,6 +55,17 @@ it('keeps the call in the page when the pop-out is off, and takes options and a 
         ->assertSee('"accept":"Pick up"', false);
 });
 
+it('keeps the other translated texts when options change only some labels', function (): void {
+    $html = (string) $this->actingAs($this->ion)->blade('<x-calls::widget :options="[\'labels\' => [\'accept\' => \'Pick up\']]" />');
+
+    preg_match('/new CallWidget\((\{.*\})\)/', $html, $match);
+    $labels = json_decode($match[1], true, flags: JSON_THROW_ON_ERROR)['labels'];
+
+    expect($labels['accept'])->toBe('Pick up')
+        ->and($labels['decline'])->toBe(__('calls::ui.decline'))
+        ->and(array_keys($labels))->toEqualCanonicalizing(array_keys(__('calls::ui')));
+});
+
 it('renders a call button for anyone but yourself', function (): void {
     $this->actingAs($this->ion)->blade('<x-calls::button :user="$ana" class="btn" />', ['ana' => $this->ana])
         ->assertSee('data-calls-call="'.$this->ana->getKey().'"', false)
@@ -76,4 +87,15 @@ it('opens the pop-out page for a call of mine only', function (): void {
     $this->actingAs(user('Dana'))->get(callsRoute('window', ['call' => $call->id]))->assertForbidden();
     $this->actingAs($this->ion)->get(callsRoute('window', ['call' => 999]))->assertNotFound();
     expect(Call::query()->count())->toBe(1);
+});
+
+it('keeps the pop-out page out of other sites\' frames', function (): void {
+    $this->actingAs($this->ion)->get(callsRoute('window'))
+        ->assertOk()
+        ->assertHeader('X-Frame-Options', 'SAMEORIGIN')
+        ->assertHeader('Content-Security-Policy', "frame-ancestors 'self'");
+});
+
+it('renders no widget for a visitor who is not signed in', function (): void {
+    expect(trim(Blade::render('<x-calls::widget />')))->toBe('');
 });

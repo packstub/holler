@@ -20,6 +20,7 @@ use Packstub\Calls\Exceptions\CallHasEnded;
 use Packstub\Calls\Exceptions\CallNotAllowed;
 use Packstub\Calls\Exceptions\CallNotRinging;
 use Packstub\Calls\Exceptions\SignalTooLarge;
+use Packstub\Calls\Exceptions\TooManySignals;
 use Packstub\Calls\Http\AssetController;
 use Packstub\Calls\Http\CallsController;
 use Packstub\Calls\Http\PopOutController;
@@ -46,11 +47,14 @@ class Calls
     /**
      * Register the nine JSON routes and the widget's pop-out page under `{prefix}/`, named `{as}poll`, `{as}store`…
      *
-     * @param  array<int, string> | string  $middleware
+     * @param  array<int, string> | string | null  $middleware  null: `auth`, on the `guard` from the config when one is set
      * @param  bool  $window  also the widget's pop-out page, `GET {prefix}/window`
      */
-    public function routes(string $prefix = 'calls', array|string $middleware = 'auth', string $as = 'calls.', bool $window = true): void
+    public function routes(string $prefix = 'calls', array|string|null $middleware = null, string $as = 'calls.', bool $window = true): void
     {
+        $guard = config('packstub-calls.guard');
+        $middleware ??= filled($guard) ? 'auth:'.$guard : 'auth';
+
         Route::prefix($prefix)->name($as)->middleware($middleware)->group(function () use ($window): void {
             Route::get('poll', [CallsController::class, 'poll'])->name('poll');
             // Asked when a call starts, so short-lived TURN credentials are fresh for each call.
@@ -158,6 +162,12 @@ class Calls
 
         $people = $this->resolveCallees($caller, $list);
 
+        // Everyone on a group call sees and hears everyone else: each pair of callees must be allowed too.
+        $users = array_values(array_filter($people, fn ($person) => $person instanceof Authenticatable));
+        foreach ($users as $i => $user) {
+            $this->assertMayMeet($user, array_slice($users, 0, $i));
+        }
+
         if (count($people) + 1 > $this->maxParticipants()) {
             throw new CallFull(__('calls::messages.full', ['max' => $this->maxParticipants()]));
         }
@@ -242,6 +252,14 @@ class Calls
         }
 
         [$person] = $inviter ? $this->resolveCallees($inviter, [$callee]) : [null];
+
+        // The newcomer meets everyone already on the call, not only the person who brings them in.
+        if ($person instanceof Authenticatable) {
+            $this->assertMayMeet($person, $call->live()
+                ->reject(fn (CallParticipant $participant) => $participant->user_id === $byUserId || Participant::isGuestId($participant->user_id))
+                ->map(fn (CallParticipant $participant) => $this->findUser($participant->user_id))
+                ->filter());
+        }
 
         // Calls the invitee walked away from, let go before the lock: never two calls locked at once.
         if ($person) {
@@ -434,9 +452,17 @@ class Calls
         }
     }
 
-    /** End a call with a reason (idempotent): its signals are deleted and CallEnded fires once. */
+    /**
+     * End a call with a reason (idempotent): its signals are deleted and CallEnded fires once.
+     *
+     * @param  string  $reason  up to 16 characters, like the shipped ones (`hung_up`, `failed`…)
+     */
     public function end(Call $call, string $reason): void
     {
+        if ($reason === '' || strlen($reason) > 16) {
+            throw new \InvalidArgumentException('An end reason is 1 to 16 characters.');
+        }
+
         $ended = $this->transaction(function () use ($call, $reason): bool {
             $this->lock($call);
 
@@ -465,6 +491,7 @@ class Calls
      * @throws CallHasEnded
      * @throws CallNotAllowed the sender is not in the call, or `$to` is not on it
      * @throws SignalTooLarge the payload is above `max_signal_kb`
+     * @throws TooManySignals more than `max_pending_signals` of the sender's are still unread
      */
     public function signal(Call $call, string $fromUserId, string $type, array $payload, ?string $to = null): ?CallSignal
     {
@@ -477,6 +504,7 @@ class Calls
         }
 
         $this->assertSignalFits($payload);
+        $this->assertRoomForSignals($call, $fromUserId);
 
         $recipients = $call->live()->filter(fn (CallParticipant $participant) => $participant->user_id !== $fromUserId);
 
@@ -572,6 +600,11 @@ class Calls
 
         if ($current && $currentId && $tab && $hold && ! $current->isEnded() && $current->participant($me)->isLive()) {
             $held = $current->participant($me)->claim($tab, $reclaimed);
+
+            // The window that holds the side read everything up to its cursor: those signals are done with.
+            if ($held && $after > 0) {
+                CallSignal::query()->where('call_id', $current->getKey())->where('to_user_id', $me)->where('id', '<=', $after)->delete();
+            }
 
             if ($reclaimed) {
                 // A fresh page starts after the signals meant for the old connection (its own
@@ -745,6 +778,24 @@ class Calls
         return array_values($people);
     }
 
+    /**
+     * `canCall()` between someone joining a call and each person already on it (either way round
+     * is asked once, the newcomer as the callee), so a group never puts together two people the
+     * context keeps apart: two tenants, say, that only the caller shares.
+     *
+     * @param  iterable<Authenticatable>  $others
+     *
+     * @throws CallNotAllowed
+     */
+    protected function assertMayMeet(Authenticatable $newcomer, iterable $others): void
+    {
+        foreach ($others as $other) {
+            if ((string) $other->getAuthIdentifier() !== (string) $newcomer->getAuthIdentifier() && ! $this->context()->canCall($other, $newcomer)) {
+                throw new CallNotAllowed(__('calls::messages.cannot_call'));
+            }
+        }
+    }
+
     /** @throws SignalTooLarge */
     protected function assertSignalFits(array $payload): void
     {
@@ -756,6 +807,21 @@ class Calls
     }
 
     /**
+     * Signals are deleted once read (and all of them when the call ends), so only the unread
+     * ones count: someone who keeps sending to people who never read cannot fill the table.
+     *
+     * @throws TooManySignals
+     */
+    protected function assertRoomForSignals(Call $call, string $fromUserId): void
+    {
+        $max = (int) config('packstub-calls.max_pending_signals', 500);
+
+        if ($max > 0 && CallSignal::query()->where('call_id', $call->getKey())->where('from_user_id', $fromUserId)->count() >= $max) {
+            throw new TooManySignals(__('calls::messages.too_many'));
+        }
+    }
+
+    /**
      * @template T
      *
      * @param  callable(): T  $callback
@@ -763,7 +829,9 @@ class Calls
      */
     protected function transaction(callable $callback): mixed
     {
-        return DB::connection((new Call)->getConnectionName())->transaction($callback);
+        // A deadlock (a hang-up deleting the signals while a signal is written) is tried again:
+        // every callback re-reads the call under its lock first, so a second run decides afresh.
+        return DB::connection((new Call)->getConnectionName())->transaction($callback, 3);
     }
 
     /**
