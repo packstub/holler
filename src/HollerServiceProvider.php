@@ -1,26 +1,26 @@
 <?php
 
-namespace Packstub\Calls;
+namespace Packstub\Holler;
 
 use Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull;
 use Illuminate\Foundation\Http\Middleware\TrimStrings;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use Packstub\Calls\Commands\PruneCommand;
-use Packstub\Calls\Contracts\CallContext;
-use Packstub\Calls\Http\AssetController;
+use Packstub\Holler\Commands\PruneCommand;
+use Packstub\Holler\Contracts\CallContext;
+use Packstub\Holler\Http\AssetController;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
 
-class CallsServiceProvider extends PackageServiceProvider
+class HollerServiceProvider extends PackageServiceProvider
 {
-    public static string $name = 'calls';
+    public static string $name = 'holler';
 
     public function configurePackage(Package $package): void
     {
         $package
             ->name(static::$name)
-            ->hasConfigFile('packstub-calls')
+            ->hasConfigFile('holler')
             ->hasTranslations()
             ->hasViews()
             ->hasMigration('create_calls_table')
@@ -30,7 +30,7 @@ class CallsServiceProvider extends PackageServiceProvider
 
     public function packageRegistered(): void
     {
-        $this->app->singleton(Calls::class);
+        $this->app->singleton(Holler::class);
         $this->app->singleton(AppContext::class);
 
         // A package that knows better (a Filament panel) binds its own context; this one is the fallback.
@@ -42,7 +42,7 @@ class CallsServiceProvider extends PackageServiceProvider
     public function packageBooted(): void
     {
         // The engine, the widget and its stylesheet, served from the package: nothing to publish or bundle.
-        Route::get('packstub-calls/assets/{file}', AssetController::class)->where('file', '[a-z]+\.(js|css)')->name('calls.asset');
+        Route::get('holler/assets/{file}', AssetController::class)->where('file', '[a-z]+\.(js|css)')->name('holler.asset');
 
         // Signals are relayed byte for byte: a session description ends in CRLF and the parser wants
         // it there, and Firefox ends its candidates with `candidate: ""`, which must not become null.

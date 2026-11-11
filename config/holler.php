@@ -8,7 +8,7 @@ return [
     |--------------------------------------------------------------------------
     |
     | The guard that signs people in where calls happen: the signed-in user and
-    | the callee are looked up through it, and `Calls::routes()` puts its
+    | the callee are looked up through it, and `Holler::routes()` puts its
     | routes behind `auth:<guard>`. Leave null for the default guard.
     | Inside a Filament panel the panel's own guard is used instead.
     |
@@ -27,7 +27,7 @@ return [
     |
     */
 
-    'connection' => env('CALLS_DB_CONNECTION'),
+    'connection' => env('HOLLER_DB_CONNECTION'),
 
     /*
     |--------------------------------------------------------------------------
@@ -44,11 +44,11 @@ return [
     */
 
     'ice_servers' => array_values(array_filter([
-        ['urls' => env('CALLS_STUN_URL', 'stun:stun.l.google.com:19302')],
-        env('CALLS_TURN_URL') ? [
-            'urls' => env('CALLS_TURN_URL'),
-            'username' => env('CALLS_TURN_USERNAME'),
-            'credential' => env('CALLS_TURN_CREDENTIAL'),
+        ['urls' => env('HOLLER_STUN_URL', 'stun:stun.l.google.com:19302')],
+        env('HOLLER_TURN_URL') ? [
+            'urls' => env('HOLLER_TURN_URL'),
+            'username' => env('HOLLER_TURN_USERNAME'),
+            'credential' => env('HOLLER_TURN_CREDENTIAL'),
         ] : null,
     ])),
 
@@ -63,7 +63,7 @@ return [
     |
     */
 
-    'ice_transport_policy' => env('CALLS_ICE_TRANSPORT_POLICY', 'all'),
+    'ice_transport_policy' => env('HOLLER_ICE_TRANSPORT_POLICY', 'all'),
 
     /*
     |--------------------------------------------------------------------------
@@ -75,7 +75,7 @@ return [
     |
     */
 
-    'max_signal_kb' => (int) env('CALLS_MAX_SIGNAL_KB', 64),
+    'max_signal_kb' => (int) env('HOLLER_MAX_SIGNAL_KB', 64),
 
     /*
     |--------------------------------------------------------------------------
@@ -89,7 +89,7 @@ return [
     |
     */
 
-    'max_pending_signals' => (int) env('CALLS_MAX_PENDING_SIGNALS', 500),
+    'max_pending_signals' => (int) env('HOLLER_MAX_PENDING_SIGNALS', 500),
 
     /*
     |--------------------------------------------------------------------------
@@ -103,8 +103,8 @@ return [
     */
 
     'poll' => [
-        'idle' => (int) env('CALLS_POLL_IDLE', 5000),
-        'active' => (int) env('CALLS_POLL_ACTIVE', 1000),
+        'idle' => (int) env('HOLLER_POLL_IDLE', 5000),
+        'active' => (int) env('HOLLER_POLL_ACTIVE', 1000),
     ],
 
     /*
@@ -116,7 +116,7 @@ return [
     |
     */
 
-    'ring_timeout' => (int) env('CALLS_RING_TIMEOUT', 45),
+    'ring_timeout' => (int) env('HOLLER_RING_TIMEOUT', 45),
 
     /*
     |--------------------------------------------------------------------------
@@ -129,7 +129,7 @@ return [
     |
     */
 
-    'reconnect_timeout' => (int) env('CALLS_RECONNECT_TIMEOUT', 15),
+    'reconnect_timeout' => (int) env('HOLLER_RECONNECT_TIMEOUT', 15),
 
     /*
     |--------------------------------------------------------------------------
@@ -141,7 +141,7 @@ return [
     |
     */
 
-    'video' => (bool) env('CALLS_VIDEO', true),
+    'video' => (bool) env('HOLLER_VIDEO', true),
 
     /*
     |--------------------------------------------------------------------------
@@ -155,33 +155,33 @@ return [
     |
     */
 
-    'max_participants' => (int) env('CALLS_MAX_PARTICIPANTS', 4),
+    'max_participants' => (int) env('HOLLER_MAX_PARTICIPANTS', 4),
 
     /*
     |--------------------------------------------------------------------------
     | The widget's pop-out window
     |--------------------------------------------------------------------------
     |
-    | `<x-calls::widget />` opens each call in a small window of its own, so
+    | `<x-holler::widget />` opens each call in a small window of its own, so
     | the page it started from can navigate, reload or close while the call
     | goes on; the page shows a chip for it. Off, the call lives in the page
     | (right for a single-page app) and a full page load reconnects it.
     |
     */
 
-    'pop_out' => (bool) env('CALLS_POP_OUT', true),
+    'pop_out' => (bool) env('HOLLER_POP_OUT', true),
 
     /*
     |--------------------------------------------------------------------------
     | Pruning
     |--------------------------------------------------------------------------
     |
-    | `php artisan calls:prune` (schedule it daily) ends the calls everybody
+    | `php artisan holler:prune` (schedule it daily) ends the calls everybody
     | walked away from and deletes ended calls older than this many days,
     | with their participants. Null keeps the call log forever.
     |
     */
 
-    'prune_after_days' => env('CALLS_PRUNE_AFTER_DAYS', 90),
+    'prune_after_days' => env('HOLLER_PRUNE_AFTER_DAYS', 90),
 
 ];

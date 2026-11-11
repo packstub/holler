@@ -1,11 +1,11 @@
 <?php
 
-namespace Packstub\Calls\Events;
+namespace Packstub\Holler\Events;
 
 use Illuminate\Contracts\Events\ShouldDispatchAfterCommit;
 use Illuminate\Foundation\Events\Dispatchable;
-use Packstub\Calls\Models\Call;
-use Packstub\Calls\Models\CallParticipant;
+use Packstub\Holler\Models\Call;
+use Packstub\Holler\Models\CallParticipant;
 
 /** Someone is gone from the call: `$participant->status` is left, declined, missed or dropped. The call may go on for the others. */
 class ParticipantLeft implements ShouldDispatchAfterCommit

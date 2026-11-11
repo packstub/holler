@@ -6,10 +6,10 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /** `packstub-calls.connection`: under database-per-tenant, one table everybody's calls meet in. */
+    /** `holler.connection`: under database-per-tenant, one table everybody's calls meet in. */
     public function getConnection(): ?string
     {
-        return config('packstub-calls.connection') ?? $this->connection;
+        return config('holler.connection') ?? $this->connection;
     }
 
     public function up(): void

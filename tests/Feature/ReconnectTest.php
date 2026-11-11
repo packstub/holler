@@ -1,8 +1,8 @@
 <?php
 
-use Packstub\Calls\Models\Call;
-use Packstub\Calls\Models\CallSignal;
-use Packstub\Calls\Tests\Fixtures\User;
+use Packstub\Holler\Models\Call;
+use Packstub\Holler\Models\CallSignal;
+use Packstub\Holler\Tests\Fixtures\User;
 
 beforeEach(function (): void {
     // Seen-at times are stored to the second: a frozen clock keeps the arithmetic exact.
@@ -92,7 +92,7 @@ it('ends a call as lost when one side stays away past the reconnect timeout', fu
     $this->actingAs($this->ana)->postJson(callsRoute('answer', ['call' => $call]), ['tab' => 'ana-1']);
     $this->actingAs($this->ion)->post(callsRoute('leave', ['call' => $call]), ['tab' => 'win-a']);
 
-    $this->travel(config('packstub-calls.reconnect_timeout') - 1)->seconds();
+    $this->travel(config('holler.reconnect_timeout') - 1)->seconds();
     pollAs($this->ana, ['call' => $call->id, 'tab' => 'ana-1', 'hold' => 1])->assertJsonPath('call.status', 'active');
 
     $this->travel(2)->seconds();

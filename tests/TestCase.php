@@ -1,14 +1,14 @@
 <?php
 
-namespace Packstub\Calls\Tests;
+namespace Packstub\Holler\Tests;
 
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Orchestra\Testbench\TestCase as Orchestra;
-use Packstub\Calls\CallsServiceProvider;
-use Packstub\Calls\Facades\Calls;
-use Packstub\Calls\Tests\Fixtures\User;
+use Packstub\Holler\Facades\Holler;
+use Packstub\Holler\HollerServiceProvider;
+use Packstub\Holler\Tests\Fixtures\User;
 
 abstract class TestCase extends Orchestra
 {
@@ -32,7 +32,7 @@ abstract class TestCase extends Orchestra
     protected function getPackageProviders($app): array
     {
         return [
-            CallsServiceProvider::class,
+            HollerServiceProvider::class,
         ];
     }
 
@@ -49,7 +49,7 @@ abstract class TestCase extends Orchestra
     protected function defineRoutes($router): void
     {
         Route::middleware('web')->group(function (): void {
-            Calls::routes();
+            Holler::routes();
         });
     }
 }

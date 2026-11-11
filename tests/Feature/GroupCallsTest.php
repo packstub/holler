@@ -2,16 +2,16 @@
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
-use Packstub\Calls\AppContext;
-use Packstub\Calls\Events\CallAnswered;
-use Packstub\Calls\Events\CallEnded;
-use Packstub\Calls\Events\ParticipantJoined;
-use Packstub\Calls\Events\ParticipantLeft;
-use Packstub\Calls\Exceptions\CallFull;
-use Packstub\Calls\Facades\Calls;
-use Packstub\Calls\Models\Call;
-use Packstub\Calls\Models\CallSignal;
-use Packstub\Calls\Tests\Fixtures\User;
+use Packstub\Holler\AppContext;
+use Packstub\Holler\Events\CallAnswered;
+use Packstub\Holler\Events\CallEnded;
+use Packstub\Holler\Events\ParticipantJoined;
+use Packstub\Holler\Events\ParticipantLeft;
+use Packstub\Holler\Exceptions\CallFull;
+use Packstub\Holler\Facades\Holler;
+use Packstub\Holler\Models\Call;
+use Packstub\Holler\Models\CallSignal;
+use Packstub\Holler\Tests\Fixtures\User;
 
 beforeEach(function (): void {
     $this->freezeSecond();
@@ -203,7 +203,7 @@ it('looks the whole roster up in one query on each poll', function (): void {
     expect(collect($response->json('call.peers'))->pluck('name')->all())->toBe(['Ana', 'Mihai', 'Dana']);
 
     // A context without `findUsers()` is looked up one by one and still names everyone.
-    $people = Calls::whoAre([(string) $this->ana->getKey(), 'nobody']);
+    $people = Holler::whoAre([(string) $this->ana->getKey(), 'nobody']);
     expect($people[(string) $this->ana->getKey()]['name'])->toBe('Ana');
     expect($people['nobody']['name'])->toBe('Someone');
 });
@@ -222,10 +222,10 @@ it('caps a call at max_participants, on start and on invite', function (): void 
 
     // The context decides the limit, and never below two.
     app(AppContext::class)->maxParticipantsUsing(2);
-    expect(Calls::maxParticipants())->toBe(2)
-        ->and(fn () => Calls::start(user('Radu'), [$vlad, user('Vera')]))->toThrow(CallFull::class);
+    expect(Holler::maxParticipants())->toBe(2)
+        ->and(fn () => Holler::start(user('Radu'), [$vlad, user('Vera')]))->toThrow(CallFull::class);
     app(AppContext::class)->maxParticipantsUsing(1);
-    expect(Calls::maxParticipants())->toBe(2);
+    expect(Holler::maxParticipants())->toBe(2);
     app(AppContext::class)->maxParticipantsUsing(null);
 });
 
@@ -259,7 +259,7 @@ it('marks an invitee who never answers as missed while the call goes on, and a q
     $call = ringGroup($this->ion, [$this->ana, $this->mihai]);
     answerAs($this->ana, $call, 'ana-1');
 
-    keepPolling($call, [$this->ion, $this->ana], config('packstub-calls.ring_timeout') + 1);
+    keepPolling($call, [$this->ion, $this->ana], config('holler.ring_timeout') + 1);
     pollHolding($this->ion, $call)
         ->assertJsonPath('call.status', 'active')
         ->assertJsonPath('call.peers.1.status', 'missed');
@@ -267,7 +267,7 @@ it('marks an invitee who never answers as missed while the call goes on, and a q
 
     // Ana's window goes quiet: she is dropped, and with Ion alone the call ends as dropped.
     $this->actingAs($this->ana)->post(callsRoute('leave', ['call' => $call]), ['tab' => 'ana-1']);
-    keepPolling($call, [$this->ion], config('packstub-calls.reconnect_timeout') + 1);
+    keepPolling($call, [$this->ion], config('holler.reconnect_timeout') + 1);
     pollHolding($this->ion, $call)
         ->assertJsonPath('call.status', 'ended')
         ->assertJsonPath('call.end_reason', 'dropped');
@@ -281,7 +281,7 @@ it('drops one quiet participant from a group of three and keeps the call for the
 
     $this->actingAs($this->mihai)->post(callsRoute('leave', ['call' => $call]), ['tab' => 'mihai-1']);
     // Ion and Ana keep polling meanwhile, so they are not stale themselves.
-    keepPolling($call, [$this->ion, $this->ana], config('packstub-calls.reconnect_timeout') + 1);
+    keepPolling($call, [$this->ion, $this->ana], config('holler.reconnect_timeout') + 1);
 
     pollHolding($this->ana, $call)
         ->assertJsonPath('call.status', 'active')
@@ -290,26 +290,26 @@ it('drops one quiet participant from a group of three and keeps the call for the
 });
 
 it('runs a group through the service without HTTP', function (): void {
-    $call = Calls::start($this->ion, [$this->ana, (string) $this->mihai->getKey()], 'ion-1');
+    $call = Holler::start($this->ion, [$this->ana, (string) $this->mihai->getKey()], 'ion-1');
 
     expect($call->participants)->toHaveCount(3)
         ->and($call->live())->toHaveCount(3)
         ->and($call->peerOf((string) $this->ion->getKey()))->toBe((string) $this->ana->getKey());
 
-    Calls::answer($call, (string) $this->mihai->getKey(), 'mihai-1');
+    Holler::answer($call, (string) $this->mihai->getKey(), 'mihai-1');
     expect($call->isActive())->toBeTrue()
-        ->and(Calls::signal($call, (string) $this->ion->getKey(), 'state', ['muted' => true]))->not->toBeNull()
+        ->and(Holler::signal($call, (string) $this->ion->getKey(), 'state', ['muted' => true]))->not->toBeNull()
         ->and(CallSignal::query()->count())->toBe(2)
-        ->and(Calls::signal($call, (string) $this->ion->getKey(), 'offer', ['sdp' => 'x'], (string) $this->mihai->getKey())?->to_user_id)->toBe((string) $this->mihai->getKey());
+        ->and(Holler::signal($call, (string) $this->ion->getKey(), 'offer', ['sdp' => 'x'], (string) $this->mihai->getKey())?->to_user_id)->toBe((string) $this->mihai->getKey());
 
-    Calls::invite($call, (string) $this->mihai->getKey(), $this->dana);
+    Holler::invite($call, (string) $this->mihai->getKey(), $this->dana);
     expect($call->participants)->toHaveCount(4)
         ->and($call->participant((string) $this->dana->getKey())->seat)->toBe(3);
 
-    Calls::hangup($call, (string) $this->ion->getKey());
+    Holler::hangup($call, (string) $this->ion->getKey());
     expect($call->fresh()->isActive())->toBeTrue()
-        ->and(Calls::openCallsOf((string) $this->ion->getKey()))->toHaveCount(0)
-        ->and(Calls::openCallsOf((string) $this->dana->getKey()))->toHaveCount(1);
+        ->and(Holler::openCallsOf((string) $this->ion->getKey()))->toHaveCount(0)
+        ->and(Holler::openCallsOf((string) $this->dana->getKey()))->toHaveCount(1);
 });
 
 it('asks canCall between every pair on a group call, not only between the caller and each callee', function (): void {

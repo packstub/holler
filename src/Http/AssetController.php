@@ -1,6 +1,6 @@
 <?php
 
-namespace Packstub\Calls\Http;
+namespace Packstub\Holler\Http;
 
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -8,7 +8,7 @@ use Symfony\Component\HttpFoundation\HeaderUtils;
 
 /**
  * Serves the browser engine, the widget and its stylesheet straight from the
- * package, so an app needs no publish step and no bundler. `Calls::asset()`
+ * package, so an app needs no publish step and no bundler. `Holler::asset()`
  * builds the URL with a version in it, and the files are cached for a year.
  */
 class AssetController
@@ -23,7 +23,7 @@ class AssetController
     {
         abort_unless(isset(self::FILES[$file]), 404);
 
-        // A versioned URL (`Calls::asset()`) is cached for a year; the widget's own import of
+        // A versioned URL (`Holler::asset()`) is cached for a year; the widget's own import of
         // `./index.js` has no version, so that one is revalidated against its ETag.
         $response = new BinaryFileResponse(static::path($file), 200, [
             'Content-Type' => self::FILES[$file].'; charset=utf-8',

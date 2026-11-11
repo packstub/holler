@@ -1,10 +1,10 @@
 <?php
 
-namespace Packstub\Calls\Models;
+namespace Packstub\Holler\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Packstub\Calls\Models\Concerns\UsesCallsConnection;
+use Packstub\Holler\Models\Concerns\UsesCallsConnection;
 
 /**
  * One signaling message on its way from one participant to another: offer, answer,

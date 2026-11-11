@@ -1,6 +1,6 @@
 <?php
 
-namespace Packstub\Calls\Exceptions;
+namespace Packstub\Holler\Exceptions;
 
 use RuntimeException;
 

@@ -1,12 +1,12 @@
 <?php
 
-namespace Packstub\Calls\Models;
+namespace Packstub\Holler\Models;
 
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
-use Packstub\Calls\Models\Concerns\UsesCallsConnection;
+use Packstub\Holler\Models\Concerns\UsesCallsConnection;
 
 /**
  * @property int $id

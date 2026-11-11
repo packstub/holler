@@ -1,6 +1,6 @@
 <?php
 
-namespace Packstub\Calls\Exceptions;
+namespace Packstub\Holler\Exceptions;
 
 /** The callee is on another call. */
 class CalleeBusy extends CallException

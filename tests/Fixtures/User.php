@@ -1,6 +1,6 @@
 <?php
 
-namespace Packstub\Calls\Tests\Fixtures;
+namespace Packstub\Holler\Tests\Fixtures;
 
 use Illuminate\Foundation\Auth\User as Authenticatable;
 

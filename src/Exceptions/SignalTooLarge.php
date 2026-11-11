@@ -1,6 +1,6 @@
 <?php
 
-namespace Packstub\Calls\Exceptions;
+namespace Packstub\Holler\Exceptions;
 
 /** A signal payload above `max_signal_kb`. */
 class SignalTooLarge extends CallException

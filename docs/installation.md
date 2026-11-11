@@ -11,14 +11,14 @@
 ## Install
 
 ```bash
-composer require packstub/calls
+composer require packstub/holler
 php artisan migrate
 ```
 
-The migration (the `calls`, `call_participants` and `call_signals` tables) runs from the package; there is nothing to publish. The config file is optional, since most of its keys read a `CALLS_*` env variable. Publish it when you want to edit it:
+The migration (the `calls`, `call_participants` and `call_signals` tables) runs from the package; there is nothing to publish. The config file is optional, since most of its keys read a `HOLLER_*` env variable. Publish it when you want to edit it:
 
 ```bash
-php artisan vendor:publish --tag=calls-config
+php artisan vendor:publish --tag=holler-config
 ```
 
 ## Register the routes
@@ -26,15 +26,15 @@ php artisan vendor:publish --tag=calls-config
 In `routes/web.php`:
 
 ```php
-use Packstub\Calls\Facades\Calls;
+use Packstub\Holler\Facades\Holler;
 
-Calls::routes();
+Holler::routes();
 ```
 
 That registers the signaling endpoints under `/calls/`, named `calls.*`, behind `auth` (or `auth:<guard>` when the config names a [guard](configuration.md#guards-and-databases)). Every argument is optional:
 
 ```php
-Calls::routes(prefix: 'team/calls', middleware: ['auth', 'verified'], as: 'team.calls.');
+Holler::routes(prefix: 'team/calls', middleware: ['auth', 'verified'], as: 'team.calls.');
 ```
 
 - `middleware` replaces the default `auth`, so include it in your list.
@@ -50,23 +50,23 @@ Put the widget in your layout, once, and a button wherever there is someone to c
 
 ```blade
 {{-- resources/views/layouts/app.blade.php, before </body> --}}
-<x-calls::widget />
+<x-holler::widget />
 
 {{-- anywhere a signed-in person can call another --}}
-<x-calls::button :user="$user" />
+<x-holler::button :user="$user" />
 ```
 
 That is the whole setup. The widget renders nothing for someone who is not signed in, so a layout shared with the login page is fine, and the button renders nothing for the signed-in person themselves. The stylesheet and the ES modules are served by the package: no bundler, nothing to publish.
 
-If you registered the routes with your own `as:` name, tell the widget: `<x-calls::widget routes="team.calls." />`. More in [The widget](the-widget.md).
+If you registered the routes with your own `as:` name, tell the widget: `<x-holler::widget routes="team.calls." />`. More in [The widget](the-widget.md).
 
 ## Schedule the cleanup
 
-`calls:prune` ends the calls everybody walked away from and deletes ended calls older than `CALLS_PRUNE_AFTER_DAYS` (90 days). Run it daily:
+`holler:prune` ends the calls everybody walked away from and deletes ended calls older than `HOLLER_PRUNE_AFTER_DAYS` (90 days). Run it daily:
 
 ```php
 // routes/console.php
-Schedule::command('calls:prune')->daily();
+Schedule::command('holler:prune')->daily();
 ```
 
 ## Try it on one machine

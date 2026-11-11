@@ -1,6 +1,6 @@
 <?php
 
-namespace Packstub\Calls\Exceptions;
+namespace Packstub\Holler\Exceptions;
 
 /** Yourself, nobody, or someone the context says no to. */
 class CallNotAllowed extends CallException

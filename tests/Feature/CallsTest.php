@@ -1,13 +1,13 @@
 <?php
 
 use Illuminate\Support\Facades\Event;
-use Packstub\Calls\AppContext;
-use Packstub\Calls\Events\CallAnswered;
-use Packstub\Calls\Events\CallEnded;
-use Packstub\Calls\Events\CallStarted;
-use Packstub\Calls\Models\Call;
-use Packstub\Calls\Models\CallSignal;
-use Packstub\Calls\Tests\Fixtures\User;
+use Packstub\Holler\AppContext;
+use Packstub\Holler\Events\CallAnswered;
+use Packstub\Holler\Events\CallEnded;
+use Packstub\Holler\Events\CallStarted;
+use Packstub\Holler\Models\Call;
+use Packstub\Holler\Models\CallSignal;
+use Packstub\Holler\Tests\Fixtures\User;
 
 beforeEach(function (): void {
     $this->ion = user('Ion');
@@ -156,7 +156,7 @@ it('marks a ringing call cancelled when the caller hangs up and hung up once it 
 it('marks a call nobody answered as missed', function (): void {
     $call = ring($this->ion, $this->ana);
 
-    $this->travel(config('packstub-calls.ring_timeout') + 1)->seconds();
+    $this->travel(config('holler.ring_timeout') + 1)->seconds();
 
     $this->actingAs($this->ion)->getJson(callsRoute('poll', ['call' => $call->id, 'tab' => 'tab', 'hold' => 1]))
         ->assertJsonPath('call.status', 'ended')

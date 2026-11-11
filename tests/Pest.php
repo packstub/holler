@@ -1,9 +1,9 @@
 <?php
 
-use Packstub\Calls\Models\Call;
-use Packstub\Calls\Models\CallParticipant;
-use Packstub\Calls\Tests\Fixtures\User;
-use Packstub\Calls\Tests\TestCase;
+use Packstub\Holler\Models\Call;
+use Packstub\Holler\Models\CallParticipant;
+use Packstub\Holler\Tests\Fixtures\User;
+use Packstub\Holler\Tests\TestCase;
 
 pest()->extend(TestCase::class)->in('Feature');
 
@@ -14,7 +14,7 @@ function user(string $name): User
 
 function callsRoute(string $name, array $parameters = []): string
 {
-    return route("calls.{$name}", $parameters);
+    return route("holler.{$name}", $parameters);
 }
 
 /** A person's fresh record on a call. */

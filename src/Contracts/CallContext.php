@@ -1,6 +1,6 @@
 <?php
 
-namespace Packstub\Calls\Contracts;
+namespace Packstub\Holler\Contracts;
 
 use Illuminate\Contracts\Auth\Authenticatable;
 
@@ -10,7 +10,7 @@ use Illuminate\Contracts\Auth\Authenticatable;
  * are named, who may call whom, and what the browsers should use to connect.
  *
  * The package binds AppContext (config and closures) for a plain Laravel app;
- * packstub/filament-calls binds a context that answers from the current
+ * packstub/filament-holler binds a context that answers from the current
  * panel's plugin.
  */
 interface CallContext

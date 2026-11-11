@@ -1,13 +1,13 @@
 <?php
 
-namespace Packstub\Calls;
+namespace Packstub\Holler;
 
 use Closure;
 use Illuminate\Auth\EloquentUserProvider;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Contracts\Auth\Guard;
 use Illuminate\Contracts\Auth\UserProvider;
-use Packstub\Calls\Contracts\CallContext;
+use Packstub\Holler\Contracts\CallContext;
 
 /**
  * The context of a plain Laravel app: the config file for what fits in config,
@@ -98,12 +98,12 @@ class AppContext implements CallContext
 
     public function guard(): Guard
     {
-        return auth()->guard(config('packstub-calls.guard'));
+        return auth()->guard(config('holler.guard'));
     }
 
     public function scope(): string
     {
-        return (string) (config('packstub-calls.guard') ?? config('auth.defaults.guard'));
+        return (string) (config('holler.guard') ?? config('auth.defaults.guard'));
     }
 
     public function currentUserId(): ?string
@@ -184,7 +184,7 @@ class AppContext implements CallContext
 
         return [
             'id' => (string) $user->getAuthIdentifier(),
-            'name' => filled($name) ? (string) $name : __('calls::messages.someone'),
+            'name' => filled($name) ? (string) $name : __('holler::messages.someone'),
             'avatar' => filled($avatar) ? (string) $avatar : null,
         ];
     }
@@ -198,20 +198,20 @@ class AppContext implements CallContext
     {
         $servers = $this->iceServers instanceof Closure ? ($this->iceServers)() : $this->iceServers;
 
-        return $servers ?? config('packstub-calls.ice_servers', []);
+        return $servers ?? config('holler.ice_servers', []);
     }
 
     public function hasVideo(): bool
     {
         $video = $this->video instanceof Closure ? ($this->video)() : $this->video;
 
-        return (bool) ($video ?? config('packstub-calls.video', true));
+        return (bool) ($video ?? config('holler.video', true));
     }
 
     public function maxParticipants(): int
     {
         $max = $this->maxParticipants instanceof Closure ? ($this->maxParticipants)() : $this->maxParticipants;
 
-        return (int) ($max ?? config('packstub-calls.max_participants', 4));
+        return (int) ($max ?? config('holler.max_participants', 4));
     }
 }
