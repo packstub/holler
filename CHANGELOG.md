@@ -10,5 +10,5 @@ First release of Holler for Laravel: the signaling backend for WebRTC calls betw
 - `Holler::routes()` for the JSON endpoints, with your own prefix, name and middleware (`auth` on the configured guard by default)
 - Calls survive a page load, and missed or dropped people are handled without ending the call for the others
 - A `CallContext` contract decides who may call whom, asked for every pair on a group call; `AppContext` covers a plain Laravel app
-- STUN and TURN from config or fresh per call, events for every step, signals deleted once read and `holler:prune` for old calls
-- `<x-holler::widget />` and `<x-holler::button />` put calls on any page, with nothing to publish or bundle; the pop-out page never shows inside another site's frame
+- A free public STUN server out of the box, TURN from config with credentials that expire per call (`HOLLER_TURN_SECRET`), events for every step, signals deleted once read and `holler:prune` for old calls
+- `<x-holler::widget />` and `<x-holler::button />` put calls on any page, with nothing to publish or bundle: device settings, a call in a background tab noticed, in English, German, Romanian and Russian

@@ -15,7 +15,7 @@ composer require packstub/holler
 php artisan migrate
 ```
 
-The migration (the `calls`, `call_participants` and `call_signals` tables) runs from the package; there is nothing to publish. The config file is optional, since most of its keys read a `HOLLER_*` env variable. Publish it when you want to edit it:
+The migration (the `holler_calls`, `holler_call_participants` and `holler_call_signals` tables) runs from the package; there is nothing to publish. The config file is optional, since most of its keys read a `HOLLER_*` env variable. Publish it when you want to edit it:
 
 ```bash
 php artisan vendor:publish --tag=holler-config

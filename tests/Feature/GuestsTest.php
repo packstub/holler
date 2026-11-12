@@ -109,15 +109,15 @@ it('keeps the tables on the configured connection', function (): void {
     config()->set('database.connections.central', ['driver' => 'sqlite', 'database' => ':memory:', 'prefix' => '']);
     config()->set('holler.connection', 'central');
 
-    $migration = include __DIR__.'/../../database/migrations/create_calls_table.php';
+    $migration = include __DIR__.'/../../database/migrations/create_holler_tables.php';
     expect($migration->getConnection())->toBe('central');
     $this->artisan('migrate', ['--database' => 'central', '--path' => realpath(__DIR__.'/../../database/migrations'), '--realpath' => true])->run();
 
     $call = Holler::start($this->ion, $this->ana);
 
     expect($call->getConnectionName())->toBe('central')
-        ->and(DB::connection('central')->table('calls')->count())->toBe(1)
-        ->and(DB::connection('central')->table('call_participants')->count())->toBe(2);
+        ->and(DB::connection('central')->table('holler_calls')->count())->toBe(1)
+        ->and(DB::connection('central')->table('holler_call_participants')->count())->toBe(2);
 });
 
 it('hands a signed-in user the ICE servers when a call starts, never cached', function (): void {
@@ -160,4 +160,40 @@ it('lets nobody bring a third person into a call with a guest on it', function (
 
     expect(fn () => Holler::invite($call, (string) $this->ana->getKey(), $this->ion))->toThrow(CallNotAllowed::class);
     $this->actingAs($this->ana)->postJson(callsRoute('invite', ['call' => $call->id]), ['callee' => $this->ion->getKey()])->assertStatus(422);
+});
+
+it('takes several URLs per ICE server and leaves out a server without one', function (): void {
+    config()->set('holler.ice_servers', [
+        ['urls' => ''],
+        ['urls' => 'turn:t.example.com:3478, turns:t.example.com:443?transport=tcp', 'username' => 'u', 'credential' => 'c', 'secret' => null, 'ttl' => 3600],
+        ['urls' => ['stun:a.example.com', 'stun:b.example.com']],
+    ]);
+
+    expect(Holler::iceServers())->toBe([
+        ['urls' => ['turn:t.example.com:3478', 'turns:t.example.com:443?transport=tcp'], 'username' => 'u', 'credential' => 'c'],
+        ['urls' => ['stun:a.example.com', 'stun:b.example.com']],
+    ]);
+});
+
+it('signs a TURN username that expires from the shared secret, and never sends the secret', function (): void {
+    $this->freezeSecond();
+    config()->set('holler.ice_servers', [
+        ['urls' => 'turn:t.example.com:3478', 'username' => 'fixed', 'credential' => 'fixed', 'secret' => 'shared-secret', 'ttl' => 600],
+    ]);
+
+    $server = $this->actingAs($this->ion)->getJson(callsRoute('ice'))->assertOk()->json('iceServers.0');
+    $username = (now()->getTimestamp() + 600).':'.$this->ion->getKey();
+
+    expect($server)->toBe([
+        'urls' => 'turn:t.example.com:3478',
+        'username' => $username,
+        'credential' => base64_encode(hash_hmac('sha1', $username, 'shared-secret', true)),
+    ]);
+
+    // A closure can use the same scheme for a server of its own.
+    app(AppContext::class)->iceServersUsing(fn () => [['urls' => 'turn:other.example.com', 'secret' => 's']]);
+    expect(Holler::iceServers()[0])->toHaveKeys(['urls', 'username', 'credential'])->not->toHaveKey('secret');
+    app(AppContext::class)->iceServersUsing(null);
+
+    expect(Holler::turnCredentials('s', 30, 'guest:abc')['username'])->toBe((now()->getTimestamp() + 60).':guest-abc');
 });

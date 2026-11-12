@@ -34,12 +34,23 @@ return [
     | ICE servers
     |--------------------------------------------------------------------------
     |
-    | Passed to RTCPeerConnection as is. A STUN server is enough for most
-    | calls: the browsers find each other and the media goes straight between
-    | them. Behind strict NATs or corporate firewalls a direct path fails and
-    | the call needs a TURN relay; set the TURN variables to your own coturn
-    | or a hosted TURN service. The relay only forwards encrypted packets
-    | (DTLS-SRTP), it cannot see or hear the call.
+    | What the browsers use to find a path to each other. A STUN server is
+    | enough for most calls: the media then goes straight between them. The
+    | default is Google's public STUN server, free and without an account;
+    | set HOLLER_STUN_URL to another one, or leave it empty to use none.
+    |
+    | Behind strict NATs, VPNs or corporate firewalls a direct path fails and
+    | the call needs a TURN relay: your own coturn or a hosted TURN service.
+    | The relay only forwards encrypted packets (DTLS-SRTP), it cannot see or
+    | hear the call.
+    |
+    | Every URL variable takes several URLs separated by commas, for example
+    | "turn:turn.example.com:3478,turns:turn.example.com:443?transport=tcp".
+    |
+    | With HOLLER_TURN_SECRET (coturn's `static-auth-secret`) each call gets a
+    | username and credential that expire after HOLLER_TURN_TTL seconds, so no
+    | long-lived TURN password ever reaches a browser. Without it the fixed
+    | HOLLER_TURN_USERNAME and HOLLER_TURN_CREDENTIAL are sent.
     |
     */
 
@@ -49,6 +60,8 @@ return [
             'urls' => env('HOLLER_TURN_URL'),
             'username' => env('HOLLER_TURN_USERNAME'),
             'credential' => env('HOLLER_TURN_CREDENTIAL'),
+            'secret' => env('HOLLER_TURN_SECRET'),
+            'ttl' => (int) env('HOLLER_TURN_TTL', 3600),
         ] : null,
     ])),
 

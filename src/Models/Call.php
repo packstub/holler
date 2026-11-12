@@ -25,6 +25,8 @@ class Call extends Model
 {
     use UsesCallsConnection;
 
+    protected $table = 'holler_calls';
+
     /** The kind of the calls the widgets make and draw. */
     public const KIND = 'call';
 

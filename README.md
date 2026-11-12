@@ -21,7 +21,8 @@ Audio, video and screen-share calls between the users of a Laravel app, one on o
 - **[Calls that survive a page load](#the-widget)**: each call in a small window of its own, or in the page; a reload reconnects in seconds.
 - **[Who may call whom](#who-may-call-whom)**: one closure, checked on the server for every pair of people on a call.
 - **[No websocket server](#configuration)**: signaling over polled HTTP through three tables; the media goes browser to browser.
-- **[STUN and TURN](#stun-and-turn)**: STUN out of the box, your own TURN relay through env variables or fresh credentials per call.
+- **[STUN and TURN](#stun-and-turn)**: a free public STUN server out of the box, your own TURN relay through env variables, with credentials that expire per call.
+- **[Devices and notifications](#the-widget)**: people choose their microphone, camera and speaker mid-call, and a call in a background tab still gets noticed.
 - **[The service without HTTP](#the-holler-service)**: `Holler::start()`, `answer()`, `invite()` for your own endpoints, guests and call kinds.
 - **[A call log](#events-and-the-call-log)**: events for every step and a `Call` model with participants and durations.
 
@@ -66,7 +67,7 @@ Read more: [Installation](https://packstub.dev/docs/holler/installation), includ
 
 ## The widget
 
-The widget draws the incoming-call toast, the call window (a tile per person, your own picture, mute, camera, screen share, hang up) and short notices. Each call opens in a small window of its own, so the page can navigate, reload or close while the call goes on; `HOLLER_POP_OUT=false` keeps the call in the page instead, which suits a single-page app.
+The widget draws the incoming-call toast, the call window (a tile per person, your own picture, mute, camera, screen share, hang up, and settings to choose the microphone, camera and speaker) and short notices. A call that rings while the tab is in the background shows in the tab's title and, once allowed, as a system notification. Each call opens in a small window of its own, so the page can navigate, reload or close while the call goes on; `HOLLER_POP_OUT=false` keeps the call in the page instead, which suits a single-page app.
 
 It is the `CallWidget` of [`@packstub/holler`](https://github.com/packstub/holler-js), plain ES modules served by the package. Restyle it with a few CSS variables, translate its texts, swap its markup, or use the engine on its own under your own UI:
 
@@ -104,15 +105,14 @@ Read more: [Group calls](https://packstub.dev/docs/holler/calling#group-calls).
 
 ## STUN and TURN
 
-Most calls connect directly with the default STUN server. Calls behind strict NATs or corporate firewalls need a TURN relay; point the package at yours:
+Calls work right after the install: the default is Google's public STUN server, free and without an account (`HOLLER_STUN_URL` takes another one), and most calls then go straight from browser to browser. People behind a strict NAT, a VPN or a corporate firewall need a TURN relay; point the package at yours:
 
 ```dotenv
-HOLLER_TURN_URL=turn:turn.example.com:3478
-HOLLER_TURN_USERNAME=...
-HOLLER_TURN_CREDENTIAL=...
+HOLLER_TURN_URL=turn:turn.example.com:3478,turns:turn.example.com:443?transport=tcp
+HOLLER_TURN_SECRET=the-secret-coturn-shares-with-the-app
 ```
 
-Or hand out short-lived credentials with `iceServersUsing()`: the browsers ask for them each time a call starts. `HOLLER_ICE_TRANSPORT_POLICY=relay` sends everything through the relay, so nobody sees anybody else's network address.
+With the secret (coturn's `use-auth-secret`) every call gets credentials that expire, so no long-lived TURN password reaches a browser; a fixed `HOLLER_TURN_USERNAME` and `HOLLER_TURN_CREDENTIAL` work too. For a hosted TURN service, return its credentials from `iceServersUsing()`: the browsers ask for the servers each time a call starts. `HOLLER_ICE_TRANSPORT_POLICY=relay` sends everything through the relay, so nobody sees anybody else's network address. A call that cannot find a path ends with "Could not connect" and a hint in the browser console.
 
 Read more: [ICE servers](https://packstub.dev/docs/holler/configuration#ice-servers-stun--turn).
 

@@ -99,3 +99,20 @@ it('keeps the pop-out page out of other sites\' frames', function (): void {
 it('renders no widget for a visitor who is not signed in', function (): void {
     expect(trim(Blade::render('<x-holler::widget />')))->toBe('');
 });
+
+it('ships the same labels and messages in every language', function (): void {
+    foreach (['ui', 'messages'] as $name) {
+        $english = require __DIR__."/../../resources/lang/en/{$name}.php";
+
+        foreach (glob(__DIR__."/../../resources/lang/*/{$name}.php") as $file) {
+            $texts = require $file;
+
+            expect(array_keys($texts))->toBe(array_keys($english), $file);
+
+            foreach ($english as $key => $text) {
+                preg_match_all('/:[a-z]+/', $text, $placeholders);
+                expect($texts[$key])->toContain(...$placeholders[0]);
+            }
+        }
+    }
+});

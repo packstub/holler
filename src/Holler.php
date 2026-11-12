@@ -4,6 +4,7 @@ namespace Packstub\Holler;
 
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
@@ -109,8 +110,67 @@ class Holler
     public function rtcConfiguration(): array
     {
         return [
-            'iceServers' => $this->context()->iceServers(),
+            'iceServers' => $this->iceServers(),
             'iceTransportPolicy' => config('holler.ice_transport_policy') === 'relay' ? 'relay' : 'all',
+        ];
+    }
+
+    /**
+     * The context's ICE servers in the shape a browser takes: several URLs in one string
+     * (`turn:host:3478, turns:host:443?transport=tcp`) become a list, a server without a URL
+     * is left out, and a server with a `secret` gets a username and a credential that
+     * expire (see `turnCredentials()`); the secret itself never leaves the server.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function iceServers(): array
+    {
+        $servers = [];
+
+        foreach ($this->context()->iceServers() as $server) {
+            $urls = collect(Arr::wrap($server['urls'] ?? $server['url'] ?? []))
+                ->flatMap(fn ($url) => explode(',', (string) $url))
+                ->map(fn (string $url) => trim($url))
+                ->filter()
+                ->values()
+                ->all();
+
+            if ($urls === []) {
+                continue;
+            }
+
+            $secret = $server['secret'] ?? null;
+            $ttl = $server['ttl'] ?? null;
+            unset($server['url'], $server['secret'], $server['ttl']);
+
+            $server['urls'] = count($urls) === 1 ? $urls[0] : $urls;
+
+            if (filled($secret)) {
+                $server = [...$server, ...$this->turnCredentials((string) $secret, (int) ($ttl ?: 3600))];
+            }
+
+            $servers[] = array_filter($server, fn ($value) => $value !== null && $value !== '');
+        }
+
+        return $servers;
+    }
+
+    /**
+     * A TURN username and credential that stop working after `$ttl` seconds, made from the
+     * secret the TURN server shares with the app (coturn's `use-auth-secret` and
+     * `static-auth-secret`, the "TURN REST API" scheme hosted services follow too): the
+     * username is the expiry time and who asked, the credential its HMAC-SHA1 in base64.
+     *
+     * @return array{username: string, credential: string}
+     */
+    public function turnCredentials(string $secret, int $ttl = 3600, ?string $userId = null): array
+    {
+        $userId ??= $this->currentUserId();
+        $username = (now()->getTimestamp() + max(60, $ttl)).(filled($userId) ? ':'.str_replace(':', '-', $userId) : '');
+
+        return [
+            'username' => $username,
+            'credential' => base64_encode(hash_hmac('sha1', $username, $secret, true)),
         ];
     }
 

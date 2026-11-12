@@ -14,10 +14,10 @@ return new class extends Migration
 
     public function up(): void
     {
-        Schema::create('calls', function (Blueprint $table): void {
+        Schema::create('holler_calls', function (Blueprint $table): void {
             $table->id();
             // User ids as strings so integer and UUID keys both fit. `callee_id` is the first
-            // person called, for a call log; everyone on the call is in `call_participants`.
+            // person called, for a call log; everyone on the call is in `holler_call_participants`.
             $table->string('caller_id', 64)->index();
             $table->string('callee_id', 64)->index();
             // `call` from the widgets; another package names its own (`assist`) so a widget
@@ -32,9 +32,9 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        Schema::create('call_participants', function (Blueprint $table): void {
+        Schema::create('holler_call_participants', function (Blueprint $table): void {
             $table->id();
-            $table->foreignId('call_id')->constrained('calls')->cascadeOnDelete();
+            $table->foreignId('call_id')->constrained('holler_calls')->cascadeOnDelete();
             $table->string('user_id', 64)->index();
             // Set for a participant made in code (`guest:<uuid>`), whom no context can look up.
             $table->string('name')->nullable();
@@ -55,9 +55,9 @@ return new class extends Migration
             $table->unique(['call_id', 'user_id']);
         });
 
-        Schema::create('call_signals', function (Blueprint $table): void {
+        Schema::create('holler_call_signals', function (Blueprint $table): void {
             $table->id();
-            $table->foreignId('call_id')->constrained('calls')->cascadeOnDelete();
+            $table->foreignId('call_id')->constrained('holler_calls')->cascadeOnDelete();
             $table->string('from_user_id', 64);
             $table->string('to_user_id', 64)->index();
             $table->string('type', 16);
@@ -70,8 +70,8 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('call_signals');
-        Schema::dropIfExists('call_participants');
-        Schema::dropIfExists('calls');
+        Schema::dropIfExists('holler_call_signals');
+        Schema::dropIfExists('holler_call_participants');
+        Schema::dropIfExists('holler_calls');
     }
 };
