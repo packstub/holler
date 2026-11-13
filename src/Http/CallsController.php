@@ -90,6 +90,42 @@ class CallsController
         return response()->json($this->holler->present($call, $me));
     }
 
+    /** Step out of the call I am on without leaving it. */
+    public function hold(Request $request, Call $call): JsonResponse
+    {
+        $me = $this->participant($call);
+
+        $this->attempt(fn (): Call => $this->holler->hold($call, $me));
+
+        return response()->json($this->holler->present($call, $me));
+    }
+
+    /** Come back to the call I put on hold; a call I am in meanwhile goes on hold in its place. */
+    public function resume(Request $request, Call $call): JsonResponse
+    {
+        $me = $this->participant($call);
+        $request->validate(['tab' => ['nullable', 'string', 'max:32']]);
+        $tab = $request->input('tab');
+
+        $this->attempt(fn (): Call => $this->holler->resume($call, $me, $tab));
+
+        return response()->json($this->holler->present($call, $me, $tab));
+    }
+
+    /** Who I can ring (`q`: what was typed), or add to the call I am on (`call`). */
+    public function people(Request $request): JsonResponse
+    {
+        $me = $this->me();
+        $user = $this->holler->findUser($me);
+        $call = $request->filled('call') ? Call::query()->with('participants')->find((int) $request->query('call')) : null;
+
+        abort_if($call && ! ($call->involves($me) && $this->holler->inScope($call, $me)), 403);
+
+        $query = $request->query('q');
+
+        return response()->json(['people' => $user ? $this->holler->people($user, is_string($query) ? $query : '', $call) : []]);
+    }
+
     /**
      * The window is going away (a beacon on unload): its side is free for the
      * next page to claim at once, and the call lives on until the reconnect
@@ -122,8 +158,8 @@ class CallsController
 
     /**
      * The one request every window repeats: a call ringing me, the call I am on
-     * (held by this window from then on when it asks to `hold` it, which is also
-     * its heartbeat), and the signals sent to me since `after`.
+     * (claimed by this window from then on when it asks to `claim` it, which is
+     * also its heartbeat), and the signals sent to me since `after`.
      */
     public function poll(Request $request): JsonResponse
     {
@@ -133,7 +169,7 @@ class CallsController
             currentId: (int) $request->query('call', 0) ?: null,
             tab: substr((string) $request->query('tab', ''), 0, 32) ?: null,
             // Only a window that runs the connection takes the side; a tab showing the chip just watches.
-            hold: $request->boolean('hold'),
+            claim: $request->boolean('claim'),
             kind: preg_match('/^[a-z0-9_-]{1,16}$/', (string) $request->query('kind', '')) ? (string) $request->query('kind') : null,
         ));
     }

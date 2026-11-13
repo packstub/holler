@@ -17,7 +17,8 @@ Audio, video and screen-share calls between the users of a Laravel app, one on o
 ## Features
 
 - **[Calls on any page](#the-widget)**: a widget in your layout and a button next to a user; nothing to publish or bundle.
-- **[Group calls](#group-calls)**: ring several people at once or add someone to a running call, up to four by default.
+- **[Group calls](#group-calls)**: ring several people at once or add someone to a running call from a search box, up to four by default.
+- **[Calls on hold](#calls-on-hold)**: step out of a call, ring someone else and swap back; the others stay on the call.
 - **[Calls that survive a page load](#the-widget)**: each call in a small window of its own, or in the page; a reload reconnects in seconds.
 - **[Who may call whom](#who-may-call-whom)**: one closure, checked on the server for every pair of people on a call.
 - **[No websocket server](#configuration)**: signaling over polled HTTP through three tables; the media goes browser to browser.
@@ -95,7 +96,7 @@ Read more: [Calling](https://packstub.dev/docs/holler/calling#who-may-call-whom)
 
 ## Group calls
 
-On a call, the same Call button adds that person to it. Everyone has a seat in the order they were invited, the browsers connect to each other directly (a full mesh, no media server), and someone who hangs up leaves the call for the others. Four people is the default limit, which is where a mesh stops being comfortable on ordinary connections:
+On a call, the Add someone button of the call window finds people by name, and a Call button on the page asks whether to add that person, put the call on hold or end it. Everyone has a seat in the order they were invited, the browsers connect to each other directly (a full mesh, no media server), and someone who hangs up leaves the call for the others. Four people is the default limit, which is where a mesh stops being comfortable on ordinary connections:
 
 ```dotenv
 HOLLER_MAX_PARTICIPANTS=4
@@ -103,9 +104,15 @@ HOLLER_MAX_PARTICIPANTS=4
 
 Read more: [Group calls](https://packstub.dev/docs/holler/calling#group-calls).
 
+## Calls on hold
+
+Put on hold in the call window steps you out of a call without leaving it: your camera and microphone close, the others stay on the call and see that you put it on hold. The call waits in a small bar with Resume and End while you ring someone else, and Resume swaps the two calls. One call on hold at a time; someone who closes every window is let go of the call after `HOLLER_HOLD_TIMEOUT` seconds.
+
+Read more: [Calls on hold](https://packstub.dev/docs/holler/calling#calls-on-hold).
+
 ## STUN and TURN
 
-Calls work right after the install: the default is Google's public STUN server, free and without an account (`HOLLER_STUN_URL` takes another one), and most calls then go straight from browser to browser. People behind a strict NAT, a VPN or a corporate firewall need a TURN relay; point the package at yours:
+Calls work right after the install: the default is Google's public STUN server, free and without an account (`HOLLER_STUN_URL` takes another one), and most calls then go straight from browser to browser. People on one network (an office, a VPN) need no server at all. People behind a strict NAT, a VPN or a corporate firewall need a TURN relay; point the package at yours:
 
 ```dotenv
 HOLLER_TURN_URL=turn:turn.example.com:3478,turns:turn.example.com:443?transport=tcp
@@ -132,7 +139,7 @@ Read more: [The Holler service](https://packstub.dev/docs/holler/calling#the-hol
 
 ## Events and the call log
 
-`CallStarted`, `CallAnswered`, `ParticipantJoined`, `ParticipantLeft` and `CallEnded` fire for every step, and `Packstub\Holler\Models\Call` is a plain Eloquent model with its participants, `end_reason` and `duration()`.
+`CallStarted`, `CallAnswered`, `ParticipantJoined`, `ParticipantHeld`, `ParticipantResumed`, `ParticipantLeft` and `CallEnded` fire for every step, and `Packstub\Holler\Models\Call` is a plain Eloquent model with its participants, `end_reason` and `duration()`.
 
 Read more: [Events and the call log](https://packstub.dev/docs/holler/configuration#events-and-the-call-log).
 
@@ -145,6 +152,8 @@ HOLLER_POLL_IDLE=5000              # ms between polls without a call
 HOLLER_POLL_ACTIVE=1000            # ms between polls during a call
 HOLLER_RING_TIMEOUT=45             # seconds before someone is marked missed
 HOLLER_RECONNECT_TIMEOUT=15        # seconds a side may be away before it is dropped
+HOLLER_HOLD_TIMEOUT=120            # seconds a call stays on hold after its holder closed every window
+HOLLER_PEOPLE_SEARCH=true          # the "Add someone" search in the call window
 HOLLER_MAX_PARTICIPANTS=4
 HOLLER_VIDEO=true                  # false: voice calls
 HOLLER_POP_OUT=true                # each call in a window of its own

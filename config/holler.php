@@ -106,6 +106,22 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Rate limits
+    |--------------------------------------------------------------------------
+    |
+    | How many times a minute one person may ring or add someone (`calls`)
+    | and search for people to add (`people`); past it the server answers
+    | 429. Polls and signals are not limited here. 0 turns a limit off.
+    |
+    */
+
+    'rate_limits' => [
+        'calls' => (int) env('HOLLER_RATE_LIMIT_CALLS', 30),
+        'people' => (int) env('HOLLER_RATE_LIMIT_PEOPLE', 60),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Polling
     |--------------------------------------------------------------------------
     |
@@ -143,6 +159,38 @@ return [
     */
 
     'reconnect_timeout' => (int) env('HOLLER_RECONNECT_TIMEOUT', 15),
+
+    /*
+    |--------------------------------------------------------------------------
+    | On hold
+    |--------------------------------------------------------------------------
+    |
+    | Someone who puts a call on hold stays on it for as long as a window of
+    | theirs is open. After this many seconds without one (they closed the
+    | browser) they are let go of the call. 0 keeps the hold for good.
+    |
+    */
+
+    'hold_timeout' => (int) env('HOLLER_HOLD_TIMEOUT', 120),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Adding people
+    |--------------------------------------------------------------------------
+    |
+    | The call window has an "Add someone" button with a search box. It finds
+    | the users of the guard by these columns, and only shows the ones the
+    | person may call. Only the name by default: add 'email' when the people
+    | who may call each other may know each other's address, since a search
+    | that matches a column tells the person typing what is in it. Set
+    | `people_search` to false to leave the button out, or answer the search
+    | yourself with AppContext::searchUsersUsing().
+    |
+    */
+
+    'people_search' => (bool) env('HOLLER_PEOPLE_SEARCH', true),
+
+    'search_columns' => ['name'],
 
     /*
     |--------------------------------------------------------------------------

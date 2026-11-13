@@ -48,7 +48,7 @@ function keepPolling(Call $call, array $users, int $seconds): void
 
 function pollHolding(User $user, Call $call)
 {
-    return test()->actingAs($user)->getJson(callsRoute('poll', ['call' => $call->id, 'tab' => strtolower($user->name).'-1', 'hold' => 1]));
+    return test()->actingAs($user)->getJson(callsRoute('poll', ['call' => $call->id, 'tab' => strtolower($user->name).'-1', 'claim' => 1]));
 }
 
 it('rings several people at once, each at the next seat, and shows everyone the roster', function (): void {
@@ -61,7 +61,7 @@ it('rings several people at once, each at the next seat, and shows everyone the 
         ->assertJsonPath('joined', true)
         ->assertJsonPath('peer.name', 'Ana')
         ->assertJsonCount(2, 'peers')
-        ->assertJsonPath('peers.0', ['id' => (string) $this->ana->getKey(), 'name' => 'Ana', 'avatar' => null, 'seat' => 1, 'status' => 'ringing', 'held' => false, 'seen_ago' => null])
+        ->assertJsonPath('peers.0', ['id' => (string) $this->ana->getKey(), 'name' => 'Ana', 'avatar' => null, 'seat' => 1, 'status' => 'ringing', 'claimed' => false, 'seen_ago' => null])
         ->assertJsonPath('peers.1.name', 'Mihai')
         ->assertJsonPath('peers.1.seat', 2);
 
@@ -92,13 +92,13 @@ it('routes a signal to one participant with `to`, to everyone else without, and 
         ->assertStatus(422)
         ->assertJsonPath('message', 'That person is not on this call.');
 
-    $this->actingAs($this->ana)->getJson(callsRoute('poll', ['call' => $call->id, 'tab' => 'ana-1', 'hold' => 1]))
+    $this->actingAs($this->ana)->getJson(callsRoute('poll', ['call' => $call->id, 'tab' => 'ana-1', 'claim' => 1]))
         ->assertJsonCount(2, 'signals')
         ->assertJsonPath('signals.0.type', 'offer')
         ->assertJsonPath('signals.0.from', (string) $this->ion->getKey())
         ->assertJsonPath('signals.1.type', 'state');
 
-    $this->actingAs($this->mihai)->getJson(callsRoute('poll', ['call' => $call->id, 'tab' => 'mihai-1', 'hold' => 1]))
+    $this->actingAs($this->mihai)->getJson(callsRoute('poll', ['call' => $call->id, 'tab' => 'mihai-1', 'claim' => 1]))
         ->assertJsonCount(1, 'signals')
         ->assertJsonPath('signals.0.type', 'state')
         ->assertJsonPath('signals.0.from', (string) $this->ion->getKey());
@@ -114,7 +114,7 @@ it('goes on when one person declines and ends only once nobody is left', functio
     Event::assertDispatched(ParticipantLeft::class, fn (ParticipantLeft $event): bool => $event->participant->status === 'declined');
     Event::assertNotDispatched(CallEnded::class);
 
-    $this->actingAs($this->ion)->getJson(callsRoute('poll', ['call' => $call->id, 'tab' => 'ion-1', 'hold' => 1]))
+    $this->actingAs($this->ion)->getJson(callsRoute('poll', ['call' => $call->id, 'tab' => 'ion-1', 'claim' => 1]))
         ->assertJsonPath('call.status', 'ringing')
         ->assertJsonPath('call.peers.1.status', 'declined')
         ->assertJsonPath('call.peer.name', 'Ana');
@@ -136,7 +136,7 @@ it('keeps the call for the others when someone hangs up, and ends it as hung up 
     $this->actingAs($this->ion)->postJson(callsRoute('hangup', ['call' => $call]))->assertOk()->assertJsonPath('status', 'active');
 
     // The caller is gone, the call runs on between Ana and Mihai; Ion's pending signals went with him.
-    $this->actingAs($this->ana)->getJson(callsRoute('poll', ['call' => $call->id, 'tab' => 'ana-1', 'hold' => 1]))
+    $this->actingAs($this->ana)->getJson(callsRoute('poll', ['call' => $call->id, 'tab' => 'ana-1', 'claim' => 1]))
         ->assertJsonPath('call.status', 'active')
         ->assertJsonPath('call.peers.0.status', 'left')
         ->assertJsonPath('call.peers.1.status', 'joined')

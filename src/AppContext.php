@@ -7,6 +7,8 @@ use Illuminate\Auth\EloquentUserProvider;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Contracts\Auth\Guard;
 use Illuminate\Contracts\Auth\UserProvider;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Log;
 use Packstub\Holler\Contracts\CallContext;
 
 /**
@@ -24,6 +26,8 @@ class AppContext implements CallContext
     protected ?Closure $userNameUsing = null;
 
     protected ?Closure $userAvatarUsing = null;
+
+    protected ?Closure $searchUsersUsing = null;
 
     /** @var array<int, array<string, mixed>> | Closure | null */
     protected array|Closure|null $iceServers = null;
@@ -59,6 +63,17 @@ class AppContext implements CallContext
     public function userAvatarUsing(?Closure $callback): static
     {
         $this->userAvatarUsing = $callback;
+
+        return $this;
+    }
+
+    /**
+     * Who the widget's "Add someone" finds: fn (Authenticatable $caller, string $query, int $limit): iterable
+     * of users. Defaults to the guard's Eloquent model searched by the `search_columns` config key.
+     */
+    public function searchUsersUsing(?Closure $callback): static
+    {
+        $this->searchUsersUsing = $callback;
 
         return $this;
     }
@@ -192,6 +207,86 @@ class AppContext implements CallContext
     public function canCall(Authenticatable $caller, Authenticatable $callee): bool
     {
         return $this->canCallUsing === null || (bool) ($this->canCallUsing)($caller, $callee);
+    }
+
+    public function searchUsers(Authenticatable $caller, string $query, int $limit): iterable
+    {
+        if ($this->searchUsersUsing) {
+            return ($this->searchUsersUsing)($caller, $query, $limit) ?? [];
+        }
+
+        return static::searchProvider($this->guard()->getProvider(), $query, $limit, (array) config('holler.search_columns', ['name']));
+    }
+
+    /**
+     * The provider's users with the words in any of these columns, whatever the case, ordered
+     * by the first one; nobody from a provider that is not Eloquent, or without columns.
+     * A column the users table lacks is left out, with a warning in the log, rather than
+     * failing every search. Read one by one as the caller walks through them, never more
+     * than `$limit`: the search stops at the first few people it may show, however many it
+     * has to pass over.
+     *
+     * @param  array<int, string>  $columns
+     * @return iterable<int, Authenticatable>
+     */
+    public static function searchProvider(?UserProvider $provider, string $query, int $limit, array $columns): iterable
+    {
+        $columns = array_values(array_filter($columns, fn ($column): bool => is_string($column) && $column !== ''));
+
+        if (! $provider instanceof EloquentUserProvider || $columns === []) {
+            return [];
+        }
+
+        $model = $provider->createModel();
+        $columns = static::existingColumns($model, $columns);
+
+        if ($columns === []) {
+            return [];
+        }
+
+        // Typed by a person: `%` and `\` mean nothing to them, and would to LIKE.
+        $words = str_replace(['%', '\\'], '', $query);
+
+        return $model->newQuery()
+            ->when($words !== '', fn ($users) => $users->where(function ($users) use ($columns, $words): void {
+                foreach ($columns as $column) {
+                    $users->orWhereLike($column, '%'.$words.'%');
+                }
+            }))
+            ->orderBy($columns[0])
+            ->limit(max(1, $limit))
+            ->cursor();
+    }
+
+    /**
+     * The columns the model's table has, of these. Qualified names (`users.name`) and JSON paths
+     * (`profile->name`) are taken on trust; when the table cannot be read, every column is.
+     *
+     * @param  array<int, string>  $columns
+     * @return array<int, string>
+     */
+    protected static function existingColumns(Model $model, array $columns): array
+    {
+        try {
+            $listing = $model->getConnection()->getSchemaBuilder()->getColumnListing($model->getTable());
+        } catch (\Throwable) {
+            return $columns;
+        }
+
+        if ($listing === []) {
+            return $columns;
+        }
+
+        $listing = array_map('strtolower', $listing);
+        $missing = array_values(array_filter($columns, fn (string $column): bool => ! str_contains($column, '.')
+            && ! str_contains($column, '->')
+            && ! in_array(strtolower($column), $listing, true)));
+
+        if ($missing !== []) {
+            Log::warning('Holler: the people search skips the columns '.implode(', ', $missing).", which the {$model->getTable()} table does not have. Fix `search_columns` in config/holler.php.");
+        }
+
+        return array_values(array_diff($columns, $missing));
     }
 
     public function iceServers(): array

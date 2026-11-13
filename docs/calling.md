@@ -34,7 +34,7 @@ Without these, the name is the user's `name`, then their `email`, and there is n
 
 Everyone on a call has a seat, in the order they were invited, the caller first. The browsers connect to each other directly, in a full mesh: between two participants the lower seat makes the WebRTC offer. There is no media server.
 
-- From the widget, a Call button rings one person; on a call, the same button adds that person to it (`POST calls/{id}/invite`).
+- From the widget, a Call button rings one person. On a call, the Add someone button of the call window opens a search box and adds whoever is picked (`POST calls/{id}/invite`), and a Call button on the page asks first: add that person to the call, put the call on hold and ring them, or end it and ring them.
 - To ring several people at once, pass a list: `callUser([anaId, mihaiId])` on the engine's `CallClient`, or `Holler::start($caller, [$ana, $mihai])` on the server.
 - Someone who hangs up leaves the call for the others. The call ends once fewer than two people are left on it, or nobody who answered. The caller hanging up before anyone answered cancels the call for everyone.
 - Someone who does not answer within `HOLLER_RING_TIMEOUT` is marked missed, and someone whose window stays away longer than `HOLLER_RECONNECT_TIMEOUT` is marked dropped. Either way the call goes on for the others while two or more are left.
@@ -53,6 +53,29 @@ app(AppContext::class)->maxParticipantsUsing(fn (): int => auth()->user()->plan-
 
 In a mesh each browser uploads its media once per other participant, and four people is where that stops being comfortable on ordinary connections. Raise the limit only with a browser topology that relays through a media server (the `topology` option of [`@packstub/holler`](https://github.com/packstub/holler-js)). The limit never goes below two.
 
+### Who can be found
+
+The search box asks `GET calls/people`, which answers with up to 8 people: the users of the guard whose `name` contains what was typed, without anyone `canCallUsing()` refuses, anyone already on the call, and anyone your rule keeps apart from someone on it. It looks through up to 200 matches for those 8, so colleagues are found even when most matches are people your rule refuses. Change the columns in `config/holler.php` (`search_columns`; a column your users table lacks is skipped, with a warning in the log): add `email` to find people by address too, where the people who may call each other may know each other's address, since a match tells the person typing what the column holds. Or answer the search yourself, where `$limit` is that 200 and a query narrowed to the people the caller may call keeps it quick:
+
+```php
+app(AppContext::class)->searchUsersUsing(
+    fn (User $caller, string $query, int $limit) => $caller->team->users()->where('name', 'like', "%{$query}%")->limit($limit)->get()
+);
+```
+
+`HOLLER_PEOPLE_SEARCH=false` leaves the button out and makes the route answer with nobody.
+
+## Calls on hold
+
+Put on hold steps someone out of a running call without leaving it. Their window closes its connections, the camera and the microphone, and is free for another call; they stay on the first one with the status `on_hold`. The others keep talking and see them as on hold; someone left alone with people on hold waits, for as long as it takes, and can hang up.
+
+- Resume brings them back with a fresh connection, the way a page reconnects after a reload. A call they are in meanwhile goes on hold in its place, so Resume swaps the two.
+- One call on hold per person. Starting a call leaves the call on hold as it is.
+- Someone with a call on hold is not busy for it: they can be rung.
+- Every open window of theirs keeps the hold. Once none has polled for `HOLLER_HOLD_TIMEOUT` seconds (120; they closed the browser) they are dropped from the call, which ends if that leaves fewer than two people. `0` keeps a hold for good.
+
+On the server: `Holler::hold($call, $userId)` and `Holler::resume($call, $userId, $tab)`.
+
 ## Voice calls
 
 ```php
@@ -70,6 +93,9 @@ use Packstub\Holler\Facades\Holler;
 
 $call = Holler::start($caller, $callee);           // one user, a user id, or a list of them
 Holler::invite($call, $byUserId, $newcomer);       // add someone; the inviter must have joined
+Holler::hold($call, $userId);                      // step out without leaving
+Holler::resume($call, $userId, $tab);              // and back in
+Holler::people($user, 'ana', $call);               // who the user can add to the call
 Holler::answer($call, $userId, $tab);              // someone rung joins
 Holler::decline($call, $userId);                   // someone rung says no
 Holler::hangup($call, $userId);                    // leave the call
@@ -80,7 +106,7 @@ Each method checks the same rules as the routes and throws a `Packstub\Holler\Ex
 
 | Exception | When | HTTP status |
 | --- | --- | --- |
-| `CallNotAllowed` | yourself, nobody, someone the context says no to, or someone not on the call | 422 |
+| `CallNotAllowed` | yourself, nobody, someone the context says no to, someone not on the call, a hold that cannot be (the call still rings, another call is on hold already), or resuming a call that is not on hold | 422 |
 | `CallFull` | more people than `max_participants` | 422 |
 | `CalleeBusy` | the person is on another call | 409 |
 | `CallNotRinging` | answering a call that is no longer ringing you | 409 |
@@ -88,7 +114,7 @@ Each method checks the same rules as the routes and throws a `Packstub\Holler\Ex
 | `SignalTooLarge` | a signal above `max_signal_kb` | 413 |
 | `TooManySignals` | too many of one person's signals unread | 429 |
 
-Starting a call leaves any call the caller is still on, once every check has passed: a refused call leaves the current one alone. `Holler` is macroable, so a package can add helpers of its own.
+Starting a call leaves any call the caller is still on, once every check has passed: a refused call leaves the current one alone, and a call on hold stays on hold. `Holler` is macroable, so a package can add helpers of its own.
 
 ## Guests and call kinds
 
@@ -102,7 +128,7 @@ $guest = new Participant('guest:'.$visitorId, 'Visitor on /checkout');
 
 $call = Holler::start($agent, $guest, kind: 'assist');
 Holler::answer($call, $guest->id, $tab);
-Holler::poll($guest->id, $after, $call->id, $tab, hold: true, kind: 'assist');
+Holler::poll($guest->id, $after, $call->id, $tab, claim: true, kind: 'assist');
 ```
 
 - A `Participant` has an id with a prefix and a colon (`guest:<uuid>`, up to 64 characters), a name and an optional avatar URL, stored on the call. The context is not asked about it: the code that created it has already decided.
@@ -129,6 +155,7 @@ Everyone's name and avatar are stored as they join, so a guest sees those rather
 | `findUser($id)` | the user with this id |
 | `who($user)` | `['id' => ..., 'name' => ..., 'avatar' => ...]` as the other side sees them |
 | `canCall($caller, $callee)` | whether the caller may ring the callee |
+| `searchUsers($caller, $query, $limit)` | the users matching what was typed into Add someone (`canCall()` is asked for each afterwards); return nothing to offer no search |
 | `iceServers()` | the STUN and TURN servers, passed to `RTCPeerConnection` as they are |
 | `hasVideo()` | whether calls start with the camera on |
 | `maxParticipants()` | people on one call, the caller included |

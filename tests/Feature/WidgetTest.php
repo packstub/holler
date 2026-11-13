@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\Vite;
 use Packstub\Holler\Facades\Holler;
 use Packstub\Holler\Models\Call;
 
@@ -19,11 +20,11 @@ it('serves the engine, the widget and its stylesheet from the package, versioned
         ->assertOk()
         ->assertHeader('Content-Type', 'text/javascript; charset=utf-8')
         ->assertHeader('Cache-Control', 'immutable, max-age=31536000, public');
-    expect($served($widget))->toContain('export class CallWidget');
+    expect($served($widget))->toStartWith('/*! @packstub/holler ')->toContain('as CallWidget');
     $engine = $this->get('/holler/assets/index.js')->assertOk()->assertHeader('Cache-Control', 'no-cache, public');
-    expect($served($engine))->toContain('export class CallClient');
+    expect($served($engine))->toContain('as CallClient');
     $styles = $this->get(Holler::asset('widget.css'))->assertOk()->assertHeader('Content-Type', 'text/css; charset=utf-8');
-    expect($served($styles))->toContain('.holler {');
+    expect($served($styles))->toContain('.holler{');
     $this->get('/holler/assets/other.js')->assertNotFound();
     $this->get('/holler/assets/../composer.json')->assertNotFound();
 });
@@ -33,7 +34,9 @@ it('renders the widget with the routes, the token, the labels and the pop-out wi
 
     $html->assertSee(Holler::asset('widget.css'), false)
         ->assertSee("import { CallWidget } from '".Holler::asset('widget.js')."'", false)
-        ->assertSee('window[\'holler\'] = new CallWidget(', false)
+        ->assertSee("const name = 'holler'", false)
+        ->assertSee('window[name] = new CallWidget(', false)
+        ->assertDontSee('nonce=', false)
         ->assertSee('"poll":"http://localhost/calls/poll"', false)
         ->assertSee('"answer":"http://localhost/calls/__ID__/answer"', false)
         ->assertSee('"windowUrl":"http://localhost/calls/window?call=__ID__&callee=__USER__"', false)
@@ -49,7 +52,7 @@ it('keeps the call in the page when the pop-out is off, and takes options and a 
     $this->actingAs($this->ion)->blade('<x-holler::widget />')->assertSee('"windowUrl":null', false)->assertSee('"popOut":false', false);
     $this->actingAs($this->ion)->blade('<x-holler::widget :pop-out="true" name="phone" :styles="false" :options="[\'video\' => false, \'labels\' => [\'accept\' => \'Pick up\']]" />')
         ->assertSee('"popOut":true', false)
-        ->assertSee('window[\'phone\'] = new CallWidget(', false)
+        ->assertSee("const name = 'phone'", false)
         ->assertDontSee('widget.css')
         ->assertSee('"video":false', false)
         ->assertSee('"accept":"Pick up"', false);
@@ -115,4 +118,14 @@ it('ships the same labels and messages in every language', function (): void {
             }
         }
     }
+});
+
+it('puts the Content-Security-Policy nonce on the script and the stylesheet', function (): void {
+    $this->actingAs($this->ion)->blade('<x-holler::widget nonce="abc123" />')
+        ->assertSee('<script type="module" data-holler-widget  nonce="abc123" >', false)
+        ->assertSee('widget.css')->assertSee('nonce="abc123" >', false);
+
+    Vite::useCspNonce('from-vite');
+
+    $this->actingAs($this->ion)->blade('<x-holler::widget />')->assertSee('nonce="from-vite"', false);
 });

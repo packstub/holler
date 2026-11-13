@@ -9,8 +9,8 @@ use Packstub\Holler\Models\Concerns\UsesCallsConnection;
 
 /**
  * One person on a call: their seat (the order they were invited in; the lower
- * seat offers), whether they are ringing, in, or gone, and which browser window
- * holds their side.
+ * seat offers), whether they are ringing, in, away with the call on hold, or
+ * gone, and which browser window holds their side.
  *
  * @property int $id
  * @property int $call_id
@@ -43,8 +43,11 @@ class CallParticipant extends Model
 
     public const DROPPED = 'dropped';
 
+    /** Stepped out with the call on hold: still on it, with no window and no media until they resume. */
+    public const ON_HOLD = 'on_hold';
+
     /** The statuses of someone still on the call. */
-    public const LIVE = [self::RINGING, self::JOINED];
+    public const LIVE = [self::RINGING, self::JOINED, self::ON_HOLD];
 
     public $timestamps = false;
 
@@ -73,16 +76,22 @@ class CallParticipant extends Model
         return $this->status === self::JOINED;
     }
 
-    /** Ringing or in: still on the call. */
+    /** Whether this person put the call on hold (see `Holler::hold()`). */
+    public function isOnHold(): bool
+    {
+        return $this->status === self::ON_HOLD;
+    }
+
+    /** Ringing, in, or away with the call on hold: still on the call. */
     public function isLive(): bool
     {
         return in_array($this->status, self::LIVE, true);
     }
 
-    /** Whether a live window holds this side: a tab is set and polled within HOLD_SECONDS. */
-    public function isHeld(): bool
+    /** Whether a live window has claimed this side: a tab is set and polled within CLAIM_SECONDS. */
+    public function isClaimed(): bool
     {
-        return $this->tab !== null && $this->seen_at?->gt(now()->subSeconds(Call::HOLD_SECONDS)) === true;
+        return $this->tab !== null && $this->seen_at?->gt(now()->subSeconds(Call::CLAIM_SECONDS)) === true;
     }
 
     /** Seconds since this side's window last polled, null if it never did. */
@@ -94,27 +103,27 @@ class CallParticipant extends Model
     /**
      * Give this side to a window: free, already its own, or left by a window that
      * stopped polling. One UPDATE, so two windows polling at once cannot both win.
-     * Returns whether the window holds the side now; sets $reclaimed when it took
+     * Returns whether the window has the side now; sets $reclaimed when it took
      * over from another (or no) window.
      */
     public function claim(string $tab, ?bool &$reclaimed = null): bool
     {
         $previous = $this->tab;
-        $heldBefore = $this->seen_at !== null;
+        $claimedBefore = $this->seen_at !== null;
 
         $claimed = static::query()->whereKey($this->getKey())
             ->where(fn ($query) => $query
                 ->whereNull('tab')
                 ->orWhere('tab', $tab)
-                ->orWhere('seen_at', '<', now()->subSeconds(Call::HOLD_SECONDS)))
+                ->orWhere('seen_at', '<', now()->subSeconds(Call::CLAIM_SECONDS)))
             ->update(['tab' => $tab, 'seen_at' => now()]) === 1;
 
         if ($claimed) {
             $this->forceFill(['tab' => $tab, 'seen_at' => now()])->syncOriginal();
         }
 
-        // Taking over from another window (or one that left) is a reclaim; a side nobody ever held is not.
-        $reclaimed = $claimed && $heldBefore && $previous !== $tab;
+        // Taking over from another window (or one that left) is a reclaim; a side nobody ever claimed is not.
+        $reclaimed = $claimed && $claimedBefore && $previous !== $tab;
 
         return $claimed;
     }

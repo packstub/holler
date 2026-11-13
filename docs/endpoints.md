@@ -11,9 +11,12 @@
 | `POST` | `{id}/decline` | `decline` | someone rung says no; someone already on the call leaves it |
 | `POST` | `{id}/hangup` | `hangup` | leave the call; it goes on for the others and ends once fewer than two are left |
 | `POST` | `{id}/invite` with `{callee}` | `invite` | add someone to the call I have joined |
+| `POST` | `{id}/hold` | `hold` | step out of a running call without leaving it; I stay on it as `on_hold` |
+| `POST` | `{id}/resume` with `{tab}` | `resume` | back into the call I put on hold; a call I am in meanwhile goes on hold instead |
+| `GET` | `people?q={words}&call={id}` | `people` | `{people: [{id, name, avatar}]}`: who I can ring, or add to that call; up to 8 |
 | `POST` | `{id}/signals` with `{type, payload, to?}` | `signal` | queue an `offer`, `answer`, `ice`, `reset` or `state` (mute, camera off, screen share) for one participant (`to`) or for everyone else on the call |
 | `POST` | `{id}/leave` with `{tab}` | `leave` | a beacon as the window unloads: the side is free for the next page |
-| `GET` | `poll?after={cursor}&call={id}&tab={tab}&hold=1&kind=call` | `poll` | `{call, incoming, signals, cursor}`, see below |
+| `GET` | `poll?after={cursor}&call={id}&tab={tab}&hold=1&kind=call` | `poll` | `{call, incoming, on_hold, signals, cursor}`, see below |
 | `GET` | `ice-servers` | `ice` | `{iceServers, iceTransportPolicy}`, asked when a call starts and never cached |
 | `GET` | `window?call={id}&callee={user}` | `window` | the widget's [pop-out page](the-widget.md#the-pop-out-window); left out with `window: false` |
 
@@ -27,18 +30,19 @@ One request, repeated by every window: every 5 seconds without a call, every sec
 
 - `call`: the call this window names with `call=`, or else any call I have joined and not left, for a page that just loaded. A call named with `call=` is returned after it ended too, so the window learns the `end_reason`.
 - `incoming`: a call ringing me, if any.
-- `signals`: my new signals after `after`, as `{id, call, type, payload, from}`, at most 100 per poll. Only the window that holds my side gets them.
+- `on_hold`: the call I put on hold, if any. It is no window's `call` meanwhile, and every poll of mine keeps it: someone on hold who stops polling for `hold_timeout` seconds is dropped from the call.
+- `signals`: my new signals after `after`, as `{id, call, type, payload, from}`, at most 100 per poll. Only the window that claimed my side gets them.
 - `cursor`: the last signal id, for the next `after`.
 
-`hold=1` asks for this window to hold my side of the call named by `call=`, and doubles as the heartbeat the other side watches. `kind` limits `call` and `incoming` to calls of that kind; the widget sends `kind=call`. Each poll also marks people who did not answer in time as missed and people who went quiet as dropped.
+`claim=1` asks for this window to claim my side of the call named by `call=`, and doubles as the heartbeat the other side watches. `kind` limits `call` and `incoming` to calls of that kind; the widget sends `kind=call`. Each poll also marks people who did not answer in time as missed and people who went quiet as dropped.
 
 ## Windows and reconnecting
 
-Every window picks a random `tab` id. Each participant's side of a call belongs to one window at a time: the window that holds it gets the signals and keeps the side by polling. A window that stops polling for 5 seconds loses it, and a `leave` beacon frees it at once.
+Every window picks a random `tab` id. Each participant's side of a call belongs to one window at a time: the window that claimed it gets the signals and keeps the side by polling. A window that stops polling for 5 seconds loses it, and a `leave` beacon frees it at once.
 
 A fresh page (a reload, or the pop-out taking over) claims the side on its first poll, sends `reset` and a new offer to each peer, and they build new connections to it. Signals meant for the old connection are skipped. If nobody claims the side within `HOLLER_RECONNECT_TIMEOUT` (15 seconds), that person is dropped from the call.
 
-Signals are deleted once the window holding the side has read them, and all of a call's signals when it ends.
+Signals are deleted once the window that claimed the side has read them, and all of a call's signals when it ends.
 
 ## The call
 
@@ -54,12 +58,13 @@ Signals are deleted once the window holding the side has read them, and all of a
     "seat": 0,
     "joined": true,
     "peers": [
-        {"id": "5", "name": "Ana", "avatar": null, "seat": 1, "status": "joined", "held": true, "seen_ago": 0}
+        {"id": "5", "name": "Ana", "avatar": null, "seat": 1, "status": "joined", "claimed": true, "seen_ago": 0}
     ],
     "peer": {"id": "5", "name": "Ana", "avatar": null},
-    "peer_held": true,
+    "peer_claimed": true,
     "peer_seen_ago": 0,
-    "held": false,
+    "on_hold": false,
+    "claimed_elsewhere": false,
     "answered_at": "2026-11-10T09:30:00+00:00"
 }
 ```
@@ -67,8 +72,8 @@ Signals are deleted once the window holding the side has read them, and all of a
 - `role` is `caller` or `callee`; `status` is `ringing`, `active` or `ended`; a participant's `status` is `ringing`, `joined`, `left`, `declined`, `missed` or `dropped`.
 - `end_reason` is `declined`, `cancelled`, `missed`, `hung_up` or `dropped`, or whatever your code passed to `Holler::end()`.
 - Between two participants, the lower `seat` makes the WebRTC offer.
-- `held` is true when another window of mine holds my side; `held` on a peer says whether a window holds theirs, and `seen_ago` is the seconds since it last polled.
-- `peer`, `peer_held` and `peer_seen_ago` describe the first live peer, which is all a 1-on-1 client reads.
+- `claimed_elsewhere` is true when another window of mine (a pop-out) has claimed my side; `claimed` on a peer says whether a window has claimed theirs, and `seen_ago` is the seconds since it last polled. `on_hold` is true when I put the call on hold.
+- `peer`, `peer_claimed` and `peer_seen_ago` describe the first live peer, which is all a 1-on-1 client reads.
 
 User ids are strings everywhere, so integer and UUID keys both work.
 

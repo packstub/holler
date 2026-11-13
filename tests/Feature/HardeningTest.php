@@ -249,7 +249,7 @@ it('deletes the signals a window read, and refuses more once too many wait unrea
     $read = Holler::poll(id($this->ana), 0, $call->id, 'ana-1', true);
     expect($read['signals'])->toHaveCount(3)->and(CallSignal::query()->count())->toBe(3);
 
-    // A poll that does not hold the side deletes nothing.
+    // A poll that does not claim the side deletes nothing.
     Holler::poll(id($this->ana), $read['cursor'], $call->id, 'ana-2', true);
     expect(CallSignal::query()->count())->toBe(3);
 
@@ -298,4 +298,31 @@ it('tries a state change again after a deadlock', function (): void {
     expect($attempts)->toBe(2)
         ->and(participantOf($call, $this->ana)->status)->toBe('joined')
         ->and($call->fresh()->status)->toBe('active');
+});
+
+it('paces how often one person rings and searches, each person on their own count', function (): void {
+    config()->set('holler.rate_limits', ['calls' => 2, 'people' => 3]);
+    $ion = user('Pacer');
+    $ana = user('Paced');
+
+    foreach (range(1, 2) as $i) {
+        $this->actingAs($ion)->postJson(callsRoute('store'), ['callee' => (string) $ana->getKey()])->assertCreated();
+    }
+
+    $this->actingAs($ion)->postJson(callsRoute('store'), ['callee' => (string) $ana->getKey()])->assertStatus(429);
+    // Adding someone counts with ringing; a poll is never held back.
+    $call = Call::query()->latest('id')->firstOrFail();
+    $this->actingAs($ion)->postJson(callsRoute('invite', ['call' => $call->id]), ['callee' => '999'])->assertStatus(429);
+    $this->actingAs($ion)->getJson(callsRoute('poll'))->assertOk();
+
+    foreach (range(1, 3) as $i) {
+        $this->actingAs($ion)->getJson(callsRoute('people'))->assertOk();
+    }
+
+    $this->actingAs($ion)->getJson(callsRoute('people'))->assertStatus(429);
+    $this->actingAs($ana)->getJson(callsRoute('people'))->assertOk();
+
+    // 0 turns a limit off.
+    config()->set('holler.rate_limits.people', 0);
+    $this->actingAs($ion)->getJson(callsRoute('people'))->assertOk();
 });

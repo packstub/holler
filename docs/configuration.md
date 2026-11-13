@@ -10,6 +10,16 @@ The settings that take a closure (who may call whom, names, avatars, ICE servers
 
 ## ICE servers (STUN / TURN)
 
+What a call needs depends on where the two people are:
+
+| The two people are | What the call needs | Set |
+| --- | --- | --- |
+| on the same network (an office, a VPN) | nothing | `HOLLER_STUN_URL=` (empty) if you want no outside server at all |
+| on different networks, behind ordinary routers | a STUN server | nothing: this is the default |
+| behind a strict NAT, a VPN or a corporate firewall | a TURN server | `HOLLER_TURN_URL` and a secret or a login |
+
+So an intranet app runs with no outside service, the default covers most calls between homes and offices, and reaching everyone takes a TURN server, your own or a hosted one.
+
 Two browsers need help to find a path to each other. A **STUN** server tells each one its public address, and for most calls that is enough: the media then goes straight from browser to browser. The package uses Google's public STUN server out of the box, free and without an account, so calls work right after the install:
 
 ```dotenv
@@ -64,9 +74,19 @@ HOLLER_ICE_TRANSPORT_POLICY=relay
 
 A TURN relay forwards packets it cannot decrypt (WebRTC media is encrypted end to end with DTLS-SRTP).
 
+### Why Laravel cannot be the relay
+
+The signaling (who calls whom, the offers and answers) goes through your Laravel routes. The audio and video cannot: a browser sends them over UDP or a long-lived socket, to the other browser or to a TURN server, and offers no way to send them through HTTP requests. A relay is therefore always a TURN server. [coturn](https://github.com/coturn/coturn) is one small daemon on any server with a public address, it answers STUN too, and with `HOLLER_TURN_SECRET` it is all the app needs.
+
 ### When a call does not connect
 
-A call that rings and is answered but never shows the other person ends after `HOLLER_RECONNECT_TIMEOUT` with "Could not connect" on both sides. When no TURN server is configured, the browser console says so too: that is nearly always the reason, since one of the two people is on a network that allows no direct path. Add a TURN server, with a `turns:` address on port 443 for the strictest networks. To check a TURN server on its own, set `HOLLER_ICE_TRANSPORT_POLICY=relay` for a moment: every call then has to go through it, also between two tabs on your own machine.
+A call that rings and is answered but never shows the other person ends after `HOLLER_RECONNECT_TIMEOUT` with "Could not connect" on both sides: the browsers found no path to each other. The usual reasons:
+
+- **No TURN server, and one side is on a strict network.** The browser console says so. Add a TURN server, with a `turns:` address on port 443 for the strictest networks.
+- **A TURN server that refuses.** Wrong, expired or removed credentials look the same as no server at all. Open `chrome://webrtc-internals` (`about:webrtc` in Firefox) during a call and look for `icecandidateerror`: a code in the 400s means the server turned the login down, 701 means it could not be reached.
+- **`HOLLER_ICE_TRANSPORT_POLICY=relay` without a working TURN server.** Every call then has to go through the relay, so none connects, also on one network. Remove the line or fix the server.
+
+To check a TURN server on its own, set `HOLLER_ICE_TRANSPORT_POLICY=relay` for a moment and call between two tabs on your own machine: the call connects only when the relay works.
 
 A call that connected and then ends with "Connection lost" had a path and lost it (a laptop that went to sleep, a network that dropped) for longer than the timeout. During a call a "Weak connection" badge on someone's picture means many packets to or from them are being lost or arrive late.
 
@@ -80,16 +100,20 @@ Every open window asks the server for incoming calls every 5 seconds and, while 
 | `HOLLER_POLL_ACTIVE` | 1000 | milliseconds between polls while a call rings or runs |
 | `HOLLER_RING_TIMEOUT` | 45 | seconds before someone who does not answer is marked missed |
 | `HOLLER_RECONNECT_TIMEOUT` | 15 | seconds a side may be away before that person is dropped from the call |
+| `HOLLER_HOLD_TIMEOUT` | 120 | seconds a [call stays on hold](calling.md#calls-on-hold) after its holder closed every window; 0 keeps it for good |
+| `HOLLER_PEOPLE_SEARCH` | true | the [Add someone](calling.md#who-can-be-found) search in the call window; the columns it searches are `search_columns` in the config file (`name` by default) |
 | `HOLLER_MAX_PARTICIPANTS` | 4 | people on one call, the caller included |
 | `HOLLER_VIDEO` | true | `false` makes every call a voice call |
 | `HOLLER_POP_OUT` | true | the widget opens each call in a [window of its own](the-widget.md#the-pop-out-window) |
 
-The routes take whatever middleware you pass to `Holler::routes()`. Add a `throttle` there if your app throttles its other JSON routes, keeping in mind that a window polls once a second during a call.
+The routes take whatever middleware you pass to `Holler::routes()`. Ringing and the people search are paced per person out of the box (see Limits); if you add a `throttle` of your own for the rest, keep in mind that a window polls once a second during a call.
 
 ## Limits
 
 | Variable | Default | |
 | --- | --- | --- |
+| `HOLLER_RATE_LIMIT_CALLS` | 30 | how many times a minute one person may ring or add someone; past it the server answers 429; 0 turns the limit off |
+| `HOLLER_RATE_LIMIT_PEOPLE` | 60 | how many times a minute one person may search for people to add; 0 turns the limit off |
 | `HOLLER_MAX_SIGNAL_KB` | 64 | the largest signal the server relays, in KB (a session description is a few); 0 turns the check off |
 | `HOLLER_MAX_PENDING_SIGNALS` | 500 | signals from one person that may wait unread on a call; past it the server answers 429; 0 turns the check off |
 
@@ -120,6 +144,8 @@ Calls are kept apart by guard: user 7 of `admin` is never rung for user 7 of `we
 | `CallStarted` | `call` | a call starts ringing |
 | `CallAnswered` | `call` | the first person answers and the call becomes active |
 | `ParticipantJoined` | `call`, `participant` | anyone answers |
+| `ParticipantHeld` | `call`, `participant` | someone puts the call on hold |
+| `ParticipantResumed` | `call`, `participant` | someone comes back to a call they put on hold |
 | `ParticipantLeft` | `call`, `participant` | anyone hangs up, declines, is missed or is dropped |
 | `CallEnded` | `call` | the call ends, for whatever reason |
 
