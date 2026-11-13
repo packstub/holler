@@ -1,10 +1,10 @@
 <?php
 
-namespace Packstub\Calls\Events;
+namespace Packstub\Holler\Events;
 
 use Illuminate\Contracts\Events\ShouldDispatchAfterCommit;
 use Illuminate\Foundation\Events\Dispatchable;
-use Packstub\Calls\Models\Call;
+use Packstub\Holler\Models\Call;
 
 class CallStarted implements ShouldDispatchAfterCommit
 {

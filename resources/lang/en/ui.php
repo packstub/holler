@@ -1,7 +1,7 @@
 <?php
 
-// The widget's texts (`<x-calls::widget />`); publish the translations to change or translate them.
-// `call` is the label of `<x-calls::button>`; the rest mirror `labels` in @packstub/calls (src/widget.js).
+// The widget's texts (`<x-holler::widget />`); publish the translations to change or translate them.
+// `call` is the label of `<x-holler::button>`; the rest mirror `labels` in @packstub/holler (src/widget.js).
 return [
     'call' => 'Call',
     'incoming' => 'is calling you',

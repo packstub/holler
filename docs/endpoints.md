@@ -1,6 +1,6 @@
 # Endpoints
 
-`Calls::routes()` registers nine JSON routes and the pop-out page. The widget and [`@packstub/calls`](https://github.com/packstub/calls-js) talk to them; this page is for writing another browser client, or another backend for `@packstub/calls`. Paths are relative to the prefix (`calls` by default) and names to `as` (`calls.`).
+`Holler::routes()` registers nine JSON routes and the pop-out page. The widget and [`@packstub/holler`](https://github.com/packstub/holler-js) talk to them; this page is for writing another browser client, or another backend for `@packstub/holler`. Paths are relative to the prefix (`calls` by default) and names to `as` (`calls.`).
 
 ## Routes
 
@@ -19,7 +19,7 @@
 
 Every route answers 401 to someone who is not signed in, and the routes with a call id answer 403 to anyone who is not on that call (or is on it from another scope).
 
-The browser files are served outside `Calls::routes()`, without auth: `GET packstub-calls/assets/{index.js|widget.js|widget.css}`, named `calls.asset`. `Calls::asset('widget.js')` gives a URL with a version in it, cached for a year.
+The browser files are served outside `Holler::routes()`, without auth: `GET holler/assets/{index.js|widget.js|widget.css}`, named `holler.asset`. `Holler::asset('widget.js')` gives a URL with a version in it, cached for a year.
 
 ## Polling
 
@@ -36,7 +36,7 @@ One request, repeated by every window: every 5 seconds without a call, every sec
 
 Every window picks a random `tab` id. Each participant's side of a call belongs to one window at a time: the window that holds it gets the signals and keeps the side by polling. A window that stops polling for 5 seconds loses it, and a `leave` beacon frees it at once.
 
-A fresh page (a reload, or the pop-out taking over) claims the side on its first poll, sends `reset` and a new offer to each peer, and they build new connections to it. Signals meant for the old connection are skipped. If nobody claims the side within `CALLS_RECONNECT_TIMEOUT` (15 seconds), that person is dropped from the call.
+A fresh page (a reload, or the pop-out taking over) claims the side on its first poll, sends `reset` and a new offer to each peer, and they build new connections to it. Signals meant for the old connection are skipped. If nobody claims the side within `HOLLER_RECONNECT_TIMEOUT` (15 seconds), that person is dropped from the call.
 
 Signals are deleted once the window holding the side has read them, and all of a call's signals when it ends.
 
@@ -65,7 +65,7 @@ Signals are deleted once the window holding the side has read them, and all of a
 ```
 
 - `role` is `caller` or `callee`; `status` is `ringing`, `active` or `ended`; a participant's `status` is `ringing`, `joined`, `left`, `declined`, `missed` or `dropped`.
-- `end_reason` is `declined`, `cancelled`, `missed`, `hung_up` or `dropped`, or whatever your code passed to `Calls::end()`.
+- `end_reason` is `declined`, `cancelled`, `missed`, `hung_up` or `dropped`, or whatever your code passed to `Holler::end()`.
 - Between two participants, the lower `seat` makes the WebRTC offer.
 - `held` is true when another window of mine holds my side; `held` on a peer says whether a window holds theirs, and `seen_ago` is the seconds since it last polled.
 - `peer`, `peer_held` and `peer_seen_ago` describe the first live peer, which is all a 1-on-1 client reads.
@@ -74,7 +74,7 @@ User ids are strings everywhere, so integer and UUID keys both work.
 
 ## Errors
 
-Errors are `{message, reason}`. `message` is for people (from the `calls::messages` translations); `reason` is for code, so a client can tell the two 409s apart:
+Errors are `{message, reason}`. `message` is for people (from the `holler::messages` translations); `reason` is for code, so a client can tell the two 409s apart:
 
 | Status | `reason` | When |
 | --- | --- | --- |
@@ -83,7 +83,7 @@ Errors are `{message, reason}`. `message` is for people (from the `calls::messag
 | 409 | `busy` | the person is on another call |
 | 409 | `not_ringing` | answering a call that no longer rings you |
 | 410 | `ended` | a signal or an invite for an ended call |
-| 413 | `too_large` | a signal above `CALLS_MAX_SIGNAL_KB` |
-| 429 | `too_many` | more than `CALLS_MAX_PENDING_SIGNALS` of your signals still unread on the call |
+| 413 | `too_large` | a signal above `HOLLER_MAX_SIGNAL_KB` |
+| 429 | `too_many` | more than `HOLLER_MAX_PENDING_SIGNALS` of your signals still unread on the call |
 
 A request that fails validation gets Laravel's usual 422 with `errors`.

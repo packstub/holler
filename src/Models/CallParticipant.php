@@ -1,11 +1,11 @@
 <?php
 
-namespace Packstub\Calls\Models;
+namespace Packstub\Holler\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
-use Packstub\Calls\Models\Concerns\UsesCallsConnection;
+use Packstub\Holler\Models\Concerns\UsesCallsConnection;
 
 /**
  * One person on a call: their seat (the order they were invited in; the lower

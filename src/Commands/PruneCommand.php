@@ -1,12 +1,12 @@
 <?php
 
-namespace Packstub\Calls\Commands;
+namespace Packstub\Holler\Commands;
 
 use Illuminate\Console\Command;
-use Packstub\Calls\Calls;
-use Packstub\Calls\Models\Call;
-use Packstub\Calls\Models\CallParticipant;
-use Packstub\Calls\Models\CallSignal;
+use Packstub\Holler\Holler;
+use Packstub\Holler\Models\Call;
+use Packstub\Holler\Models\CallParticipant;
+use Packstub\Holler\Models\CallSignal;
 
 /**
  * Housekeeping for a schedule: ends the calls everybody walked away from (nobody
@@ -15,22 +15,22 @@ use Packstub\Calls\Models\CallSignal;
  */
 class PruneCommand extends Command
 {
-    protected $signature = 'calls:prune {--days= : Delete ended calls older than this many days (default: the prune_after_days config)}';
+    protected $signature = 'holler:prune {--days= : Delete ended calls older than this many days (default: the prune_after_days config)}';
 
     protected $description = 'End abandoned calls and delete old ended ones';
 
-    public function handle(Calls $calls): int
+    public function handle(Holler $holler): int
     {
         $stale = 0;
 
         Call::query()->with('participants')->where('status', '!=', Call::ENDED)
-            ->where('updated_at', '<', now()->subSeconds((int) config('packstub-calls.reconnect_timeout', 15)))
-            ->chunkById(200, function ($open) use ($calls, &$stale): void {
-                $calls->expireCalls($open);
+            ->where('updated_at', '<', now()->subSeconds((int) config('holler.reconnect_timeout', 15)))
+            ->chunkById(200, function ($open) use ($holler, &$stale): void {
+                $holler->expireCalls($open);
                 $stale += $open->filter(fn (Call $call) => $call->isEnded())->count();
             });
 
-        $days = $this->option('days') ?? config('packstub-calls.prune_after_days');
+        $days = $this->option('days') ?? config('holler.prune_after_days');
         $deleted = 0;
 
         if ($days !== null && (int) $days > 0) {

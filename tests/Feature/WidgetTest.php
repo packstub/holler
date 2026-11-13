@@ -1,8 +1,8 @@
 <?php
 
 use Illuminate\Support\Facades\Blade;
-use Packstub\Calls\Facades\Calls;
-use Packstub\Calls\Models\Call;
+use Packstub\Holler\Facades\Holler;
+use Packstub\Holler\Models\Call;
 
 beforeEach(function (): void {
     $this->ion = user('Ion');
@@ -10,8 +10,8 @@ beforeEach(function (): void {
 });
 
 it('serves the engine, the widget and its stylesheet from the package, versioned and cached', function (): void {
-    $url = Calls::asset('widget.js');
-    expect($url)->toStartWith('http://localhost/packstub-calls/assets/widget.js?v=');
+    $url = Holler::asset('widget.js');
+    expect($url)->toStartWith('http://localhost/holler/assets/widget.js?v=');
 
     $served = fn ($response) => file_get_contents($response->baseResponse->getFile()->getPathname());
 
@@ -20,20 +20,20 @@ it('serves the engine, the widget and its stylesheet from the package, versioned
         ->assertHeader('Content-Type', 'text/javascript; charset=utf-8')
         ->assertHeader('Cache-Control', 'immutable, max-age=31536000, public');
     expect($served($widget))->toContain('export class CallWidget');
-    $engine = $this->get('/packstub-calls/assets/index.js')->assertOk()->assertHeader('Cache-Control', 'no-cache, public');
+    $engine = $this->get('/holler/assets/index.js')->assertOk()->assertHeader('Cache-Control', 'no-cache, public');
     expect($served($engine))->toContain('export class CallClient');
-    $styles = $this->get(Calls::asset('widget.css'))->assertOk()->assertHeader('Content-Type', 'text/css; charset=utf-8');
-    expect($served($styles))->toContain('.calls {');
-    $this->get('/packstub-calls/assets/other.js')->assertNotFound();
-    $this->get('/packstub-calls/assets/../composer.json')->assertNotFound();
+    $styles = $this->get(Holler::asset('widget.css'))->assertOk()->assertHeader('Content-Type', 'text/css; charset=utf-8');
+    expect($served($styles))->toContain('.holler {');
+    $this->get('/holler/assets/other.js')->assertNotFound();
+    $this->get('/holler/assets/../composer.json')->assertNotFound();
 });
 
 it('renders the widget with the routes, the token, the labels and the pop-out window', function (): void {
-    $html = $this->actingAs($this->ion)->blade('<x-calls::widget />');
+    $html = $this->actingAs($this->ion)->blade('<x-holler::widget />');
 
-    $html->assertSee(Calls::asset('widget.css'), false)
-        ->assertSee("import { CallWidget } from '".Calls::asset('widget.js')."'", false)
-        ->assertSee('window[\'calls\'] = new CallWidget(', false)
+    $html->assertSee(Holler::asset('widget.css'), false)
+        ->assertSee("import { CallWidget } from '".Holler::asset('widget.js')."'", false)
+        ->assertSee('window[\'holler\'] = new CallWidget(', false)
         ->assertSee('"poll":"http://localhost/calls/poll"', false)
         ->assertSee('"answer":"http://localhost/calls/__ID__/answer"', false)
         ->assertSee('"windowUrl":"http://localhost/calls/window?call=__ID__&callee=__USER__"', false)
@@ -44,10 +44,10 @@ it('renders the widget with the routes, the token, the labels and the pop-out wi
 });
 
 it('keeps the call in the page when the pop-out is off, and takes options and a name of your own', function (): void {
-    config()->set('packstub-calls.pop_out', false);
+    config()->set('holler.pop_out', false);
 
-    $this->actingAs($this->ion)->blade('<x-calls::widget />')->assertSee('"windowUrl":null', false)->assertSee('"popOut":false', false);
-    $this->actingAs($this->ion)->blade('<x-calls::widget :pop-out="true" name="phone" :styles="false" :options="[\'video\' => false, \'labels\' => [\'accept\' => \'Pick up\']]" />')
+    $this->actingAs($this->ion)->blade('<x-holler::widget />')->assertSee('"windowUrl":null', false)->assertSee('"popOut":false', false);
+    $this->actingAs($this->ion)->blade('<x-holler::widget :pop-out="true" name="phone" :styles="false" :options="[\'video\' => false, \'labels\' => [\'accept\' => \'Pick up\']]" />')
         ->assertSee('"popOut":true', false)
         ->assertSee('window[\'phone\'] = new CallWidget(', false)
         ->assertDontSee('widget.css')
@@ -56,23 +56,23 @@ it('keeps the call in the page when the pop-out is off, and takes options and a 
 });
 
 it('keeps the other translated texts when options change only some labels', function (): void {
-    $html = (string) $this->actingAs($this->ion)->blade('<x-calls::widget :options="[\'labels\' => [\'accept\' => \'Pick up\']]" />');
+    $html = (string) $this->actingAs($this->ion)->blade('<x-holler::widget :options="[\'labels\' => [\'accept\' => \'Pick up\']]" />');
 
     preg_match('/new CallWidget\((\{.*\})\)/', $html, $match);
     $labels = json_decode($match[1], true, flags: JSON_THROW_ON_ERROR)['labels'];
 
     expect($labels['accept'])->toBe('Pick up')
-        ->and($labels['decline'])->toBe(__('calls::ui.decline'))
-        ->and(array_keys($labels))->toEqualCanonicalizing(array_keys(__('calls::ui')));
+        ->and($labels['decline'])->toBe(__('holler::ui.decline'))
+        ->and(array_keys($labels))->toEqualCanonicalizing(array_keys(__('holler::ui')));
 });
 
 it('renders a call button for anyone but yourself', function (): void {
-    $this->actingAs($this->ion)->blade('<x-calls::button :user="$ana" class="btn" />', ['ana' => $this->ana])
-        ->assertSee('data-calls-call="'.$this->ana->getKey().'"', false)
-        ->assertSee('class="calls-call-button btn"', false)
+    $this->actingAs($this->ion)->blade('<x-holler::button :user="$ana" class="btn" />', ['ana' => $this->ana])
+        ->assertSee('data-holler-call="'.$this->ana->getKey().'"', false)
+        ->assertSee('class="holler-call-button btn"', false)
         ->assertSeeText('Call');
-    $this->actingAs($this->ion)->blade('<x-calls::button :user="$ana->getKey()">Ring Ana</x-calls::button>', ['ana' => $this->ana])->assertSee('Ring Ana');
-    expect(trim(Blade::render('<x-calls::button :user="$ion" />', ['ion' => $this->ion])))->toBe('');
+    $this->actingAs($this->ion)->blade('<x-holler::button :user="$ana->getKey()">Ring Ana</x-holler::button>', ['ana' => $this->ana])->assertSee('Ring Ana');
+    expect(trim(Blade::render('<x-holler::button :user="$ion" />', ['ion' => $this->ion])))->toBe('');
 });
 
 it('opens the pop-out page for a call of mine only', function (): void {
@@ -81,7 +81,7 @@ it('opens the pop-out page for a call of mine only', function (): void {
         ->assertSee('"inPopOut":true', false)
         ->assertSee('"windowUrl":"http://localhost/calls/window?call=__ID__&callee=__USER__"', false);
 
-    $call = Calls::start($this->ion, $this->ana, 'ion-1');
+    $call = Holler::start($this->ion, $this->ana, 'ion-1');
     $this->actingAs($this->ion)->get(callsRoute('window', ['call' => $call->id]))->assertOk();
     $this->actingAs($this->ana)->get(callsRoute('window', ['call' => $call->id]))->assertOk();
     $this->actingAs(user('Dana'))->get(callsRoute('window', ['call' => $call->id]))->assertForbidden();
@@ -97,5 +97,5 @@ it('keeps the pop-out page out of other sites\' frames', function (): void {
 });
 
 it('renders no widget for a visitor who is not signed in', function (): void {
-    expect(trim(Blade::render('<x-calls::widget />')))->toBe('');
+    expect(trim(Blade::render('<x-holler::widget />')))->toBe('');
 });

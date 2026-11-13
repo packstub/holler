@@ -1,6 +1,6 @@
 <?php
 
-namespace Packstub\Calls\Exceptions;
+namespace Packstub\Holler\Exceptions;
 
 /** A signal for a call that already ended (a last candidate after the hang-up). */
 class CallHasEnded extends CallException

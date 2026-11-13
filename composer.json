@@ -1,6 +1,6 @@
 {
-    "name": "packstub/calls",
-    "description": "Audio, video and screen-share calls between the users of a Laravel app, one on one or in small groups, peer to peer over WebRTC. Laravel only handles who calls whom and relays the signaling over polled HTTP, no websockets; a Blade widget and button put calls on any page, and guests and call kinds let another package build on it. packstub/filament-calls adds a Filament panel UI.",
+    "name": "packstub/holler",
+    "description": "Audio, video and screen-share calls between the users of a Laravel app, one on one or in small groups, peer to peer over WebRTC. Laravel only handles who calls whom and relays the signaling over polled HTTP, no websockets; a Blade widget and button put calls on any page, and guests and call kinds let another package build on it. packstub/filament-holler adds a Filament panel UI.",
     "keywords": [
         "packstub",
         "laravel",
@@ -13,11 +13,11 @@
         "signaling",
         "blade"
     ],
-    "homepage": "https://github.com/packstub/calls",
+    "homepage": "https://github.com/packstub/holler",
     "support": {
-        "issues": "https://github.com/packstub/calls/issues",
-        "source": "https://github.com/packstub/calls",
-        "docs": "https://packstub.dev/docs/calls"
+        "issues": "https://github.com/packstub/holler/issues",
+        "source": "https://github.com/packstub/holler",
+        "docs": "https://packstub.dev/docs/holler"
     },
     "license": "MIT",
     "funding": [
@@ -49,16 +49,16 @@
         "pestphp/pest": "^4.7.8 || ^5.3.4"
     },
     "suggest": {
-        "packstub/filament-calls": "The same calls inside a Filament panel: a CallAction, a widget and a pop-out window drawn with Filament's components"
+        "packstub/filament-holler": "The same calls inside a Filament panel: a CallAction, a widget and a pop-out window drawn with Filament's components"
     },
     "autoload": {
         "psr-4": {
-            "Packstub\\Calls\\": "src/"
+            "Packstub\\Holler\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Packstub\\Calls\\Tests\\": "tests/"
+            "Packstub\\Holler\\Tests\\": "tests/"
         }
     },
     "scripts": {
@@ -76,10 +76,10 @@
     "extra": {
         "laravel": {
             "providers": [
-                "Packstub\\Calls\\CallsServiceProvider"
+                "Packstub\\Holler\\HollerServiceProvider"
             ],
             "aliases": {
-                "Calls": "Packstub\\Calls\\Facades\\Calls"
+                "Holler": "Packstub\\Holler\\Facades\\Holler"
             }
         }
     },

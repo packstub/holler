@@ -1,6 +1,6 @@
 <?php
 
-namespace Packstub\Calls;
+namespace Packstub\Holler;
 
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Builder;
@@ -8,25 +8,25 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Traits\Macroable;
-use Packstub\Calls\Contracts\CallContext;
-use Packstub\Calls\Events\CallAnswered;
-use Packstub\Calls\Events\CallEnded;
-use Packstub\Calls\Events\CallStarted;
-use Packstub\Calls\Events\ParticipantJoined;
-use Packstub\Calls\Events\ParticipantLeft;
-use Packstub\Calls\Exceptions\CalleeBusy;
-use Packstub\Calls\Exceptions\CallFull;
-use Packstub\Calls\Exceptions\CallHasEnded;
-use Packstub\Calls\Exceptions\CallNotAllowed;
-use Packstub\Calls\Exceptions\CallNotRinging;
-use Packstub\Calls\Exceptions\SignalTooLarge;
-use Packstub\Calls\Exceptions\TooManySignals;
-use Packstub\Calls\Http\AssetController;
-use Packstub\Calls\Http\CallsController;
-use Packstub\Calls\Http\PopOutController;
-use Packstub\Calls\Models\Call;
-use Packstub\Calls\Models\CallParticipant;
-use Packstub\Calls\Models\CallSignal;
+use Packstub\Holler\Contracts\CallContext;
+use Packstub\Holler\Events\CallAnswered;
+use Packstub\Holler\Events\CallEnded;
+use Packstub\Holler\Events\CallStarted;
+use Packstub\Holler\Events\ParticipantJoined;
+use Packstub\Holler\Events\ParticipantLeft;
+use Packstub\Holler\Exceptions\CalleeBusy;
+use Packstub\Holler\Exceptions\CallFull;
+use Packstub\Holler\Exceptions\CallHasEnded;
+use Packstub\Holler\Exceptions\CallNotAllowed;
+use Packstub\Holler\Exceptions\CallNotRinging;
+use Packstub\Holler\Exceptions\SignalTooLarge;
+use Packstub\Holler\Exceptions\TooManySignals;
+use Packstub\Holler\Http\AssetController;
+use Packstub\Holler\Http\CallsController;
+use Packstub\Holler\Http\PopOutController;
+use Packstub\Holler\Models\Call;
+use Packstub\Holler\Models\CallParticipant;
+use Packstub\Holler\Models\CallSignal;
 
 /**
  * The signaling core: who calls whom, who is on a call and at which seat, which
@@ -40,7 +40,7 @@ use Packstub\Calls\Models\CallSignal;
  * lower seat makes the WebRTC offer. Someone who hangs up leaves the call for the
  * others; the call ends once fewer than two people are left on it.
  */
-class Calls
+class Holler
 {
     use Macroable;
 
@@ -50,9 +50,9 @@ class Calls
      * @param  array<int, string> | string | null  $middleware  null: `auth`, on the `guard` from the config when one is set
      * @param  bool  $window  also the widget's pop-out page, `GET {prefix}/window`
      */
-    public function routes(string $prefix = 'calls', array|string|null $middleware = null, string $as = 'calls.', bool $window = true): void
+    public function routes(string $prefix = 'calls', array|string|null $middleware = null, string $as = 'holler.', bool $window = true): void
     {
-        $guard = config('packstub-calls.guard');
+        $guard = config('holler.guard');
         $middleware ??= filled($guard) ? 'auth:'.$guard : 'auth';
 
         Route::prefix($prefix)->name($as)->middleware($middleware)->group(function () use ($window): void {
@@ -66,7 +66,7 @@ class Calls
             Route::post('{call}/invite', [CallsController::class, 'invite'])->name('invite')->whereNumber('call');
             Route::post('{call}/signals', [CallsController::class, 'signal'])->name('signal')->whereNumber('call');
             Route::post('{call}/leave', [CallsController::class, 'leave'])->name('leave')->whereNumber('call');
-            // The pop-out page of `<x-calls::widget />`; a package with a window of its own passes `window: false`.
+            // The pop-out page of `<x-holler::widget />`; a package with a window of its own passes `window: false`.
             if ($window) {
                 Route::get('window', PopOutController::class)->name('window');
             }
@@ -76,7 +76,7 @@ class Calls
     /** The URL of a file the package serves to the browser: `index.js` (the engine), `widget.js`, `widget.css`. */
     public function asset(string $file): string
     {
-        return route('calls.asset', ['file' => $file]).'?v='.AssetController::version($file);
+        return route('holler.asset', ['file' => $file]).'?v='.AssetController::version($file);
     }
 
     public function context(): CallContext
@@ -110,7 +110,7 @@ class Calls
     {
         return [
             'iceServers' => $this->context()->iceServers(),
-            'iceTransportPolicy' => config('packstub-calls.ice_transport_policy') === 'relay' ? 'relay' : 'all',
+            'iceTransportPolicy' => config('holler.ice_transport_policy') === 'relay' ? 'relay' : 'all',
         ];
     }
 
@@ -157,7 +157,7 @@ class Calls
 
         // A string id would be looked up in the current context's guard, not the call's.
         if ($scope !== $this->scope() && collect($list)->contains(fn ($callee) => is_string($callee) || is_int($callee))) {
-            throw new CallNotAllowed(__('calls::messages.cannot_call'));
+            throw new CallNotAllowed(__('holler::messages.cannot_call'));
         }
 
         $people = $this->resolveCallees($caller, $list);
@@ -169,7 +169,7 @@ class Calls
         }
 
         if (count($people) + 1 > $this->maxParticipants()) {
-            throw new CallFull(__('calls::messages.full', ['max' => $this->maxParticipants()]));
+            throw new CallFull(__('holler::messages.full', ['max' => $this->maxParticipants()]));
         }
 
         $mine = $this->openCallsOf($me, $scope);
@@ -188,7 +188,7 @@ class Calls
             ));
 
             if ($busy) {
-                throw new CalleeBusy(__('calls::messages.busy'));
+                throw new CalleeBusy(__('holler::messages.busy'));
             }
         }
 
@@ -248,7 +248,7 @@ class Calls
         $inviter = $by?->isJoined() && ! Participant::isGuestId($byUserId) ? $this->findUser($byUserId) : null;
 
         if (! $inviter && ! $call->isEnded()) {
-            throw new CallNotAllowed(__('calls::messages.join_first'));
+            throw new CallNotAllowed(__('holler::messages.join_first'));
         }
 
         [$person] = $inviter ? $this->resolveCallees($inviter, [$callee]) : [null];
@@ -274,31 +274,31 @@ class Calls
             $this->lock($call);
 
             if ($call->isEnded()) {
-                throw new CallHasEnded(__('calls::messages.ended'));
+                throw new CallHasEnded(__('holler::messages.ended'));
             }
 
             if (! $call->participant($byUserId)?->isJoined()) {
-                throw new CallNotAllowed(__('calls::messages.join_first'));
+                throw new CallNotAllowed(__('holler::messages.join_first'));
             }
 
             // A guest agreed to the people on their call, not to whoever those bring in.
             if ($call->participants->contains(fn (CallParticipant $participant) => Participant::isGuestId($participant->user_id))) {
-                throw new CallNotAllowed(__('calls::messages.cannot_call'));
+                throw new CallNotAllowed(__('holler::messages.cannot_call'));
             }
 
             $personId = static::idOf($person);
             $existing = $call->participant($personId);
 
             if ($existing?->isLive()) {
-                throw new CallNotAllowed(__('calls::messages.cannot_call'));
+                throw new CallNotAllowed(__('holler::messages.cannot_call'));
             }
 
             if ($call->live()->count() + 1 > $this->maxParticipants()) {
-                throw new CallFull(__('calls::messages.full', ['max' => $this->maxParticipants()]));
+                throw new CallFull(__('holler::messages.full', ['max' => $this->maxParticipants()]));
             }
 
             if ($this->openCallsOf($personId, $call->scope)->isNotEmpty()) {
-                throw new CalleeBusy(__('calls::messages.busy'));
+                throw new CalleeBusy(__('holler::messages.busy'));
             }
 
             $attributes = [
@@ -337,11 +337,11 @@ class Calls
             $me = $call->participant($userId);
 
             if ($call->isEnded() || ! $me?->isRinging()) {
-                throw new CallNotRinging(__('calls::messages.not_ringing'));
+                throw new CallNotRinging(__('holler::messages.not_ringing'));
             }
 
             if ($this->openCallsOf($userId, $call->scope)->contains(fn (Call $other) => ! $other->is($call) && $other->participant($userId)?->isJoined())) {
-                throw new CalleeBusy(__('calls::messages.busy'));
+                throw new CalleeBusy(__('holler::messages.busy'));
             }
 
             $me->forceFill([
@@ -496,11 +496,11 @@ class Calls
     public function signal(Call $call, string $fromUserId, string $type, array $payload, ?string $to = null): ?CallSignal
     {
         if ($call->isEnded()) {
-            throw new CallHasEnded(__('calls::messages.ended'));
+            throw new CallHasEnded(__('holler::messages.ended'));
         }
 
         if (! $call->participant($fromUserId)?->isJoined()) {
-            throw new CallNotAllowed(__('calls::messages.not_on_call'));
+            throw new CallNotAllowed(__('holler::messages.not_on_call'));
         }
 
         $this->assertSignalFits($payload);
@@ -510,7 +510,7 @@ class Calls
 
         if ($to !== null) {
             if (! $call->involves($to)) {
-                throw new CallNotAllowed(__('calls::messages.not_on_call'));
+                throw new CallNotAllowed(__('holler::messages.not_on_call'));
             }
 
             $recipients = $recipients->filter(fn (CallParticipant $participant) => $participant->user_id === $to);
@@ -548,8 +548,8 @@ class Calls
      */
     public function expireCalls(iterable $calls): void
     {
-        $ringDeadline = now()->subSeconds((int) config('packstub-calls.ring_timeout', 45));
-        $dropDeadline = now()->subSeconds((int) config('packstub-calls.reconnect_timeout', 15));
+        $ringDeadline = now()->subSeconds((int) config('holler.ring_timeout', 45));
+        $dropDeadline = now()->subSeconds((int) config('holler.reconnect_timeout', 15));
 
         // A side that never named a window has not polled since it joined.
         $missed = fn (CallParticipant $participant): bool => $participant->isRinging() && $participant->invited_at?->lt($ringDeadline) === true;
@@ -679,7 +679,7 @@ class Calls
 
         foreach ($call->peersOf($me) as $peer) {
             if (! isset($people[$peer->user_id])) {
-                $people[$peer->user_id] = ['id' => $peer->user_id, 'name' => $peer->name ?? __('calls::messages.someone'), 'avatar' => $peer->avatar];
+                $people[$peer->user_id] = ['id' => $peer->user_id, 'name' => $peer->name ?? __('holler::messages.someone'), 'avatar' => $peer->avatar];
             }
         }
 
@@ -733,7 +733,7 @@ class Calls
         $people = [];
 
         foreach ($userIds as $userId) {
-            $people[$userId] = $found[$userId] ?? ['id' => $userId, 'name' => __('calls::messages.someone'), 'avatar' => null];
+            $people[$userId] = $found[$userId] ?? ['id' => $userId, 'name' => __('holler::messages.someone'), 'avatar' => null];
         }
 
         return $people;
@@ -765,14 +765,14 @@ class Calls
                 : $callee;
 
             if (! $user instanceof Authenticatable || (string) $user->getAuthIdentifier() === $me || ! $this->context()->canCall($caller, $user)) {
-                throw new CallNotAllowed(__('calls::messages.cannot_call'));
+                throw new CallNotAllowed(__('holler::messages.cannot_call'));
             }
 
             $people[(string) $user->getAuthIdentifier()] = $user;
         }
 
         if ($people === []) {
-            throw new CallNotAllowed(__('calls::messages.cannot_call'));
+            throw new CallNotAllowed(__('holler::messages.cannot_call'));
         }
 
         return array_values($people);
@@ -791,7 +791,7 @@ class Calls
     {
         foreach ($others as $other) {
             if ((string) $other->getAuthIdentifier() !== (string) $newcomer->getAuthIdentifier() && ! $this->context()->canCall($other, $newcomer)) {
-                throw new CallNotAllowed(__('calls::messages.cannot_call'));
+                throw new CallNotAllowed(__('holler::messages.cannot_call'));
             }
         }
     }
@@ -799,10 +799,10 @@ class Calls
     /** @throws SignalTooLarge */
     protected function assertSignalFits(array $payload): void
     {
-        $kb = (int) config('packstub-calls.max_signal_kb', 64);
+        $kb = (int) config('holler.max_signal_kb', 64);
 
         if ($kb > 0 && strlen((string) json_encode($payload)) > $kb * 1024) {
-            throw new SignalTooLarge(__('calls::messages.too_large', ['kb' => $kb]));
+            throw new SignalTooLarge(__('holler::messages.too_large', ['kb' => $kb]));
         }
     }
 
@@ -814,10 +814,10 @@ class Calls
      */
     protected function assertRoomForSignals(Call $call, string $fromUserId): void
     {
-        $max = (int) config('packstub-calls.max_pending_signals', 500);
+        $max = (int) config('holler.max_pending_signals', 500);
 
         if ($max > 0 && CallSignal::query()->where('call_id', $call->getKey())->where('from_user_id', $fromUserId)->count() >= $max) {
-            throw new TooManySignals(__('calls::messages.too_many'));
+            throw new TooManySignals(__('holler::messages.too_many'));
         }
     }
 

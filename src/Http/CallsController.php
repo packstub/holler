@@ -1,17 +1,17 @@
 <?php
 
-namespace Packstub\Calls\Http;
+namespace Packstub\Holler\Http;
 
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Validation\Rule;
-use Packstub\Calls\Calls;
-use Packstub\Calls\Exceptions\CallException;
-use Packstub\Calls\Exceptions\CallNotAllowed;
-use Packstub\Calls\Models\Call;
-use Packstub\Calls\Models\CallSignal;
+use Packstub\Holler\Exceptions\CallException;
+use Packstub\Holler\Exceptions\CallNotAllowed;
+use Packstub\Holler\Holler;
+use Packstub\Holler\Models\Call;
+use Packstub\Holler\Models\CallSignal;
 
 /**
  * The signaling endpoints: a few JSON routes behind the app's auth. The
@@ -20,7 +20,7 @@ use Packstub\Calls\Models\CallSignal;
  */
 class CallsController
 {
-    public function __construct(protected Calls $calls) {}
+    public function __construct(protected Holler $holler) {}
 
     /** Ring someone (`callee`), or several people at once (`callees`). Any call the caller is still on is left first. */
     public function store(Request $request): JsonResponse
@@ -35,14 +35,14 @@ class CallsController
 
         foreach ($callees as $callee) {
             if (! is_scalar($callee) || strlen((string) $callee) > 64) {
-                $this->attempt(fn () => throw new CallNotAllowed(__('calls::messages.cannot_call')));
+                $this->attempt(fn () => throw new CallNotAllowed(__('holler::messages.cannot_call')));
             }
         }
 
         $tab = $request->input('tab');
-        $call = $this->attempt(fn (): Call => $this->calls->start($request->user(), array_map(strval(...), $callees), $tab));
+        $call = $this->attempt(fn (): Call => $this->holler->start($request->user(), array_map(strval(...), $callees), $tab));
 
-        return response()->json($this->calls->present($call, $this->me(), $tab), 201);
+        return response()->json($this->holler->present($call, $this->me(), $tab), 201);
     }
 
     public function answer(Request $request, Call $call): JsonResponse
@@ -51,27 +51,27 @@ class CallsController
         $request->validate(['tab' => ['nullable', 'string', 'max:32']]);
         $tab = $request->input('tab');
 
-        $this->attempt(fn (): Call => $this->calls->answer($call, $me, $tab));
+        $this->attempt(fn (): Call => $this->holler->answer($call, $me, $tab));
 
-        return response()->json($this->calls->present($call, $me, $tab));
+        return response()->json($this->holler->present($call, $me, $tab));
     }
 
     public function decline(Request $request, Call $call): JsonResponse
     {
         $me = $this->participant($call);
 
-        $this->calls->decline($call, $me);
+        $this->holler->decline($call, $me);
 
-        return response()->json($this->calls->present($call, $me));
+        return response()->json($this->holler->present($call, $me));
     }
 
     public function hangup(Request $request, Call $call): JsonResponse
     {
         $me = $this->participant($call);
 
-        $this->calls->hangup($call, $me);
+        $this->holler->hangup($call, $me);
 
-        return response()->json($this->calls->present($call, $me));
+        return response()->json($this->holler->present($call, $me));
     }
 
     /** Add someone to the call I am on. */
@@ -82,12 +82,12 @@ class CallsController
         $callee = $request->input('callee');
 
         if (! is_scalar($callee) || strlen((string) $callee) > 64) {
-            $this->attempt(fn () => throw new CallNotAllowed(__('calls::messages.cannot_call')));
+            $this->attempt(fn () => throw new CallNotAllowed(__('holler::messages.cannot_call')));
         }
 
-        $this->attempt(fn (): Call => $this->calls->invite($call, $me, (string) $callee));
+        $this->attempt(fn (): Call => $this->holler->invite($call, $me, (string) $callee));
 
-        return response()->json($this->calls->present($call, $me));
+        return response()->json($this->holler->present($call, $me));
     }
 
     /**
@@ -115,7 +115,7 @@ class CallsController
             'to' => ['nullable', 'string', 'max:64'],
         ]);
 
-        $signal = $this->attempt(fn (): ?CallSignal => $this->calls->signal($call, $me, $data['type'], $data['payload'], $data['to'] ?? null));
+        $signal = $this->attempt(fn (): ?CallSignal => $this->holler->signal($call, $me, $data['type'], $data['payload'], $data['to'] ?? null));
 
         return response()->json(['id' => $signal?->id], 201);
     }
@@ -127,7 +127,7 @@ class CallsController
      */
     public function poll(Request $request): JsonResponse
     {
-        return response()->json($this->calls->poll(
+        return response()->json($this->holler->poll(
             me: $this->me(),
             after: (int) $request->query('after', 0),
             currentId: (int) $request->query('call', 0) ?: null,
@@ -143,12 +143,12 @@ class CallsController
     {
         $this->me();
 
-        return response()->json($this->calls->rtcConfiguration())->header('Cache-Control', 'no-store');
+        return response()->json($this->holler->rtcConfiguration())->header('Cache-Control', 'no-store');
     }
 
     protected function me(): string
     {
-        $me = $this->calls->currentUserId();
+        $me = $this->holler->currentUserId();
 
         abort_if($me === null, 401);
 
@@ -159,7 +159,7 @@ class CallsController
     {
         $me = $this->me();
 
-        abort_unless($call->involves($me) && $this->calls->inScope($call, $me), 403);
+        abort_unless($call->involves($me) && $this->holler->inScope($call, $me), 403);
 
         return $me;
     }

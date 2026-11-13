@@ -8,6 +8,6 @@
     <style>html, body { margin: 0; height: 100%; background: #09090b; font-family: ui-sans-serif, system-ui, sans-serif; }</style>
 </head>
 <body>
-    <x-calls::widget :routes="$routes" :in-pop-out="true" />
+    <x-holler::widget :routes="$routes" :in-pop-out="true" />
 </body>
 </html>

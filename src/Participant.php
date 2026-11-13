@@ -1,12 +1,12 @@
 <?php
 
-namespace Packstub\Calls;
+namespace Packstub\Holler;
 
 use InvalidArgumentException;
 
 /**
  * Someone on a call who is not a user of the guard: a visitor a support agent
- * helps, for example. Code passes one to `Calls::start()`; its name and avatar
+ * helps, for example. Code passes one to `Holler::start()`; its name and avatar
  * are stored on the call, since no context can look the id up. The id must
  * carry a prefix with a colon (`guest:<uuid>`), which no route ever resolves,
  * so nobody can ring a participant from the HTTP endpoints.

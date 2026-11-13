@@ -1,6 +1,6 @@
 <?php
 
-namespace Packstub\Calls\Exceptions;
+namespace Packstub\Holler\Exceptions;
 
 /** More signals from one person waiting on a call than `max_pending_signals`: nobody is reading them. */
 class TooManySignals extends CallException
