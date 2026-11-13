@@ -10,24 +10,51 @@ The settings that take a closure (who may call whom, names, avatars, ICE servers
 
 ## ICE servers (STUN / TURN)
 
-Most calls connect directly with a STUN server, which is what the default config uses. Calls behind strict NATs, VPNs or corporate firewalls need a TURN relay; point the package at yours (coturn, or a hosted service):
+Two browsers need help to find a path to each other. A **STUN** server tells each one its public address, and for most calls that is enough: the media then goes straight from browser to browser. The package uses Google's public STUN server out of the box, free and without an account, so calls work right after the install:
 
 ```dotenv
 HOLLER_STUN_URL=stun:stun.l.google.com:19302
-HOLLER_TURN_URL=turn:turn.example.com:3478
-HOLLER_TURN_USERNAME=...
-HOLLER_TURN_CREDENTIAL=...
 ```
 
-Or in code, for example with short-lived TURN credentials:
+Any other STUN server works the same way (`stun:stun.cloudflare.com:3478`, or your own), several can be listed with commas, and an empty value uses none. Public STUN servers come without a guarantee, so a production app that depends on calls usually runs its own beside the TURN server below (coturn does both).
+
+Behind a strict NAT, a VPN or a corporate firewall no direct path exists, and the call needs a **TURN** relay that forwards the media. This is a minority of calls, but for the people on those networks it is every call. Point the package at a relay, your own [coturn](https://github.com/coturn/coturn) or a hosted service:
+
+```dotenv
+HOLLER_TURN_URL=turn:turn.example.com:3478,turns:turn.example.com:443?transport=tcp
+HOLLER_TURN_SECRET=the-secret-coturn-shares-with-the-app
+```
+
+`HOLLER_TURN_URL` takes several addresses separated by commas. Listing a `turns:` address on port 443 over TCP beside the plain one is what gets a call through networks that only let web traffic out.
+
+With `HOLLER_TURN_SECRET` every call gets a username and a credential that expire (after `HOLLER_TURN_TTL` seconds, 3600 by default), signed with the secret the TURN server shares with the app, so no long-lived password ever reaches a browser. It is coturn's `use-auth-secret` scheme:
+
+```ini
+# /etc/turnserver.conf
+listening-port=3478
+tls-listening-port=5349
+realm=turn.example.com
+use-auth-secret
+static-auth-secret=the-secret-coturn-shares-with-the-app
+cert=/etc/letsencrypt/live/turn.example.com/fullchain.pem
+pkey=/etc/letsencrypt/live/turn.example.com/privkey.pem
+```
+
+A server with one fixed login takes `HOLLER_TURN_USERNAME` and `HOLLER_TURN_CREDENTIAL` instead of the secret.
+
+A hosted TURN service (Cloudflare Realtime, Twilio, Metered and others) hands out short-lived credentials through its API. Ask for them in a closure and return what the browser should use:
 
 ```php
-app(AppContext::class)->iceServersUsing(fn () => [
-    ['urls' => 'turn:turn.example.com:3478', 'username' => $user, 'credential' => $password],
+app(AppContext::class)->iceServersUsing(fn (): array => [
+    ['urls' => 'stun:stun.example.com:3478'],
+    ...Http::withToken(config('services.turn.token'))
+        ->post(config('services.turn.url'), ['ttl' => 3600])
+        ->throw()
+        ->json('iceServers'),
 ]);
 ```
 
-The browsers ask for these each time a call starts (the `ice-servers` route), never when the page loads: a closure with short-lived credentials runs per call, the credentials never sit in the page's HTML, and a tab left open all day still gets fresh ones.
+The browsers ask for the servers each time a call starts (the `ice-servers` route), never when the page loads: the closure runs per call, the credentials never sit in the page's HTML, and a tab left open all day still gets fresh ones. Any server in that list may carry `secret` (and `ttl`) instead of a username and credential, and is signed the same way; `Holler::turnCredentials($secret, $ttl)` returns the pair on its own.
 
 ICE candidates show each side's network addresses to the other. To keep them private, send everything through your TURN server:
 
@@ -36,6 +63,12 @@ HOLLER_ICE_TRANSPORT_POLICY=relay
 ```
 
 A TURN relay forwards packets it cannot decrypt (WebRTC media is encrypted end to end with DTLS-SRTP).
+
+### When a call does not connect
+
+A call that rings and is answered but never shows the other person ends after `HOLLER_RECONNECT_TIMEOUT` with "Could not connect" on both sides. When no TURN server is configured, the browser console says so too: that is nearly always the reason, since one of the two people is on a network that allows no direct path. Add a TURN server, with a `turns:` address on port 443 for the strictest networks. To check a TURN server on its own, set `HOLLER_ICE_TRANSPORT_POLICY=relay` for a moment: every call then has to go through it, also between two tabs on your own machine.
+
+A call that connected and then ends with "Connection lost" had a path and lost it (a laptop that went to sleep, a network that dropped) for longer than the timeout. During a call a "Weak connection" badge on someone's picture means many packets to or from them are being lost or arrive late.
 
 ## Polling and timeouts
 
@@ -104,4 +137,4 @@ Event::listen(CallEnded::class, function (CallEnded $event) {
 });
 ```
 
-`Packstub\Holler\Models\Call` is a plain Eloquent model over the `calls` table (with `CallParticipant` and `CallSignal` beside it), ready for a page or a report of your own.
+`Packstub\Holler\Models\Call` is a plain Eloquent model over the `holler_calls` table (with `CallParticipant` and `CallSignal` beside it), ready for a page or a report of your own.

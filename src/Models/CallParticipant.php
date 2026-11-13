@@ -29,6 +29,8 @@ class CallParticipant extends Model
 {
     use UsesCallsConnection;
 
+    protected $table = 'holler_call_participants';
+
     public const RINGING = 'ringing';
 
     public const JOINED = 'joined';

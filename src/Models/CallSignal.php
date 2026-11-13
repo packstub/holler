@@ -23,6 +23,8 @@ class CallSignal extends Model
 {
     use UsesCallsConnection;
 
+    protected $table = 'holler_call_signals';
+
     public const TYPES = ['offer', 'answer', 'ice', 'reset', 'state'];
 
     public $timestamps = false;

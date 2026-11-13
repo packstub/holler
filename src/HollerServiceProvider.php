@@ -23,7 +23,7 @@ class HollerServiceProvider extends PackageServiceProvider
             ->hasConfigFile('holler')
             ->hasTranslations()
             ->hasViews()
-            ->hasMigration('create_calls_table')
+            ->hasMigration('create_holler_tables')
             ->hasCommand(PruneCommand::class)
             ->runsMigrations();
     }

@@ -1,6 +1,6 @@
 # Endpoints
 
-`Holler::routes()` registers nine JSON routes and the pop-out page. The widget and [`@packstub/holler`](https://github.com/packstub/holler-js) talk to them; this page is for writing another browser client, or another backend for `@packstub/holler`. Paths are relative to the prefix (`calls` by default) and names to `as` (`calls.`).
+`Holler::routes()` registers nine JSON routes and the pop-out page. The widget and [`@packstub/holler`](https://github.com/packstub/holler-js) talk to them; this page is for writing another browser client, or another backend for `@packstub/holler`. Paths are relative to the prefix (`calls` by default) and names to `as` (`holler.`).
 
 ## Routes
 
