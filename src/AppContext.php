@@ -25,6 +25,8 @@ class AppContext implements CallContext
 
     protected ?Closure $userAvatarUsing = null;
 
+    protected ?Closure $searchUsersUsing = null;
+
     /** @var array<int, array<string, mixed>> | Closure | null */
     protected array|Closure|null $iceServers = null;
 
@@ -59,6 +61,17 @@ class AppContext implements CallContext
     public function userAvatarUsing(?Closure $callback): static
     {
         $this->userAvatarUsing = $callback;
+
+        return $this;
+    }
+
+    /**
+     * Who the widget's "Add someone" finds: fn (Authenticatable $caller, string $query, int $limit): iterable
+     * of users. Defaults to the guard's Eloquent model searched by the `search_columns` config key.
+     */
+    public function searchUsersUsing(?Closure $callback): static
+    {
+        $this->searchUsersUsing = $callback;
 
         return $this;
     }
@@ -192,6 +205,46 @@ class AppContext implements CallContext
     public function canCall(Authenticatable $caller, Authenticatable $callee): bool
     {
         return $this->canCallUsing === null || (bool) ($this->canCallUsing)($caller, $callee);
+    }
+
+    public function searchUsers(Authenticatable $caller, string $query, int $limit): iterable
+    {
+        if ($this->searchUsersUsing) {
+            return ($this->searchUsersUsing)($caller, $query, $limit) ?? [];
+        }
+
+        return static::searchProvider($this->guard()->getProvider(), $query, $limit, (array) config('holler.search_columns', ['name']));
+    }
+
+    /**
+     * The provider's users with the words in any of these columns, whatever the case, ordered
+     * by the first one; nobody from a provider that is not Eloquent, or without columns.
+     * Read one by one as the caller walks through them, never more than `$limit`: the search
+     * stops at the first few people it may show, however many it has to pass over.
+     *
+     * @param  array<int, string>  $columns
+     * @return iterable<int, Authenticatable>
+     */
+    public static function searchProvider(?UserProvider $provider, string $query, int $limit, array $columns): iterable
+    {
+        $columns = array_values(array_filter($columns, 'is_string'));
+
+        if (! $provider instanceof EloquentUserProvider || $columns === []) {
+            return [];
+        }
+
+        // Typed by a person: `%` and `\` mean nothing to them, and would to LIKE.
+        $words = str_replace(['%', '\\'], '', $query);
+
+        return $provider->createModel()->newQuery()
+            ->when($words !== '', fn ($users) => $users->where(function ($users) use ($columns, $words): void {
+                foreach ($columns as $column) {
+                    $users->orWhereLike($column, '%'.$words.'%');
+                }
+            }))
+            ->orderBy($columns[0])
+            ->limit(max(1, $limit))
+            ->cursor();
     }
 
     public function iceServers(): array

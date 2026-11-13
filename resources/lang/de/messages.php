@@ -11,4 +11,7 @@ return [
     'not_on_call' => 'Diese Person ist nicht in diesem Anruf.',
     'too_large' => 'Dieses Signal ist größer als :kb KB.',
     'too_many' => 'Zu viele Signale warten in diesem Anruf darauf, gelesen zu werden.',
+    'already_holding' => 'Du hältst bereits einen Anruf.',
+    'cannot_hold' => 'Nur ein Anruf, in dem du bist, kann gehalten werden.',
+    'not_on_hold' => 'Dieser Anruf wird nicht gehalten.',
 ];

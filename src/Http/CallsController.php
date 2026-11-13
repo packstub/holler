@@ -90,6 +90,42 @@ class CallsController
         return response()->json($this->holler->present($call, $me));
     }
 
+    /** Step out of the call I am on without leaving it. */
+    public function hold(Request $request, Call $call): JsonResponse
+    {
+        $me = $this->participant($call);
+
+        $this->attempt(fn (): Call => $this->holler->hold($call, $me));
+
+        return response()->json($this->holler->present($call, $me));
+    }
+
+    /** Come back to the call I put on hold; a call I am in meanwhile goes on hold in its place. */
+    public function resume(Request $request, Call $call): JsonResponse
+    {
+        $me = $this->participant($call);
+        $request->validate(['tab' => ['nullable', 'string', 'max:32']]);
+        $tab = $request->input('tab');
+
+        $this->attempt(fn (): Call => $this->holler->resume($call, $me, $tab));
+
+        return response()->json($this->holler->present($call, $me, $tab));
+    }
+
+    /** Who I can ring (`q`: what was typed), or add to the call I am on (`call`). */
+    public function people(Request $request): JsonResponse
+    {
+        $me = $this->me();
+        $user = $this->holler->findUser($me);
+        $call = $request->filled('call') ? Call::query()->with('participants')->find((int) $request->query('call')) : null;
+
+        abort_if($call && ! ($call->involves($me) && $this->holler->inScope($call, $me)), 403);
+
+        $query = $request->query('q');
+
+        return response()->json(['people' => $user ? $this->holler->people($user, is_string($query) ? $query : '', $call) : []]);
+    }
+
     /**
      * The window is going away (a beacon on unload): its side is free for the
      * next page to claim at once, and the call lives on until the reconnect

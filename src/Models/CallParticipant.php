@@ -9,8 +9,8 @@ use Packstub\Holler\Models\Concerns\UsesCallsConnection;
 
 /**
  * One person on a call: their seat (the order they were invited in; the lower
- * seat offers), whether they are ringing, in, or gone, and which browser window
- * holds their side.
+ * seat offers), whether they are ringing, in, away with the call on hold, or
+ * gone, and which browser window holds their side.
  *
  * @property int $id
  * @property int $call_id
@@ -43,8 +43,11 @@ class CallParticipant extends Model
 
     public const DROPPED = 'dropped';
 
+    /** Stepped out with the call on hold: still on it, with no window and no media until they resume. */
+    public const ON_HOLD = 'on_hold';
+
     /** The statuses of someone still on the call. */
-    public const LIVE = [self::RINGING, self::JOINED];
+    public const LIVE = [self::RINGING, self::JOINED, self::ON_HOLD];
 
     public $timestamps = false;
 
@@ -73,7 +76,13 @@ class CallParticipant extends Model
         return $this->status === self::JOINED;
     }
 
-    /** Ringing or in: still on the call. */
+    /** Whether this person put the call on hold (see `Holler::hold()`). */
+    public function isOnHold(): bool
+    {
+        return $this->status === self::ON_HOLD;
+    }
+
+    /** Ringing, in, or away with the call on hold: still on the call. */
     public function isLive(): bool
     {
         return in_array($this->status, self::LIVE, true);

@@ -1,9 +1,10 @@
 {
     "name": "holler",
     "private": true,
-    "description": "Build helper: copies the @packstub/holler engine and widget into resources/dist (committed, so Composer users need no npm).",
+    "description": "Build helper: copies the minified @packstub/holler engine, widget and stylesheet into resources/dist (committed, so Composer users need no npm).",
     "scripts": {
-        "build:js": "cp node_modules/@packstub/holler/src/index.js node_modules/@packstub/holler/src/widget.js node_modules/@packstub/holler/src/widget.css resources/dist/"
+        "build:js": "cp node_modules/@packstub/holler/dist/index.js node_modules/@packstub/holler/dist/widget.js node_modules/@packstub/holler/dist/widget.css resources/dist/",
+        "build:js:local": "npm --prefix ../holler-js run build && cp ../holler-js/dist/index.js ../holler-js/dist/widget.js ../holler-js/dist/widget.css resources/dist/"
     },
     "devDependencies": {
         "@packstub/holler": "github:packstub/holler-js"

@@ -11,6 +11,7 @@ The widget is the `CallWidget` from [`@packstub/holler`](https://github.com/pack
 | `routes` | `holler.` | the route name prefix given to `Holler::routes()` |
 | `pop-out` | `HOLLER_POP_OUT` (true) | open each call in a window of its own, with a chip on the page |
 | `styles` | `true` | load the package stylesheet; `false` to bring your own |
+| `nonce` | `Vite::cspNonce()` | the Content-Security-Policy nonce put on the widget's script and stylesheet tags; set automatically when your app calls `Vite::useCspNonce()` |
 | `options` | `[]` | more `CallWidget` options, merged key by key over the ones the component builds: `labels`, `video`, `windowFeatures`, `callSelector` and the rest |
 | `name` | `holler` | the global the widget is kept in, `window.holler`, for your own scripts |
 
@@ -20,14 +21,14 @@ The widget is the `CallWidget` from [`@packstub/holler`](https://github.com/pack
 
 ## Call buttons
 
-Any element with `data-holler-call="<user id>"` is a call button: a click rings that person, or adds them to the call you are on. `<x-holler::button>` is a shortcut for it:
+Any element with `data-holler-call="<user id>"` is a call button: a click rings that person. Clicked during a call, the widget asks what to do with the call you are on: add the person to it, put it on hold and ring them, or end it and ring them. `<x-holler::button>` is a shortcut for it:
 
 ```blade
 <x-holler::button :user="$user" />
 <x-holler::button :user="$user->id" class="btn btn-sm">Call {{ $user->first_name }}</x-holler::button>
 ```
 
-It takes a user or an id, merges your attributes and slot (the label is "Call" without one), and renders nothing for the signed-in person. It does not ask whether the call is allowed; the server does when it is clicked.
+It takes a user or an id, merges your attributes and slot (the label is "Call" without one), and renders nothing for the signed-in person. Given a user, it also puts their name in `data-holler-name`, which the widget shows with its question (`name="..."` sets it for an id). To add the person at once as before, pass `:options="['duringCall' => 'add']"` to the widget. It does not ask whether the call is allowed; the server does when it is clicked.
 
 ## Scripting
 
@@ -100,7 +101,7 @@ They land in `lang/vendor/holler/en/ui.php` (the widget) and `messages.php` (the
 
 ## Your own markup
 
-The widget renders five views from template functions: `incoming` (the toast), `chip`, `window`, `tile` (one per other participant) and `notice`. Each is rendered once when it appears and kept current through a few `data-holler-*` hooks: `text`, `show`, `class`, `attr`, `src`, `video` and `action`. Pass in your own markup and keep whichever hooks you need. Templates are functions, so they cannot come through a Blade attribute; set them from a script:
+The widget renders eight views from template functions: `incoming` (the toast), `chip`, `window`, `tile` (one per other participant), `person` (one per person the search found), `held` (the bar of a call on hold), `prompt` (the question when Call is pressed during a call) and `notice`. Each is rendered once when it appears and kept current through a few `data-holler-*` hooks: `text`, `show`, `class`, `attr`, `src`, `video` and `action`. Pass in your own markup and keep whichever hooks you need. Templates are functions, so they cannot come through a Blade attribute; set them from a script:
 
 ```blade
 <x-holler::widget :options="['startPolling' => false]" />
@@ -128,4 +129,4 @@ For a UI of your own or a component in your frontend framework, use the engine o
 import { CallClient, HttpSignaling } from '{{ Holler::asset('index.js') }}'
 ```
 
-Or `npm install @packstub/holler`. Give it the nine routes, the CSRF token, `Holler::rtcConfiguration()`, `Holler::context()->hasVideo()` and `Holler::maxParticipants()`. Its README documents the events (`incoming`, `localstream`, `remotestream`, `peers`, `statechange`, `ended`) and the controls (`callUser`, `invite`, `accept`, `decline`, `hangUp`, `setMuted`, `setCameraOff`, `shareScreen`, `devices`, `setDevice`). The routes and their JSON are in [Endpoints](endpoints.md).
+Or `npm install @packstub/holler`. Give it the routes, the CSRF token, `Holler::rtcConfiguration()`, `Holler::context()->hasVideo()` and `Holler::maxParticipants()`. Its README documents the events (`incoming`, `localstream`, `remotestream`, `peers`, `statechange`, `ended`) and the controls (`callUser`, `invite`, `search`, `hold`, `resumeHeld`, `accept`, `decline`, `hangUp`, `setMuted`, `setCameraOff`, `shareScreen`, `devices`, `setDevice`). The routes and their JSON are in [Endpoints](endpoints.md).

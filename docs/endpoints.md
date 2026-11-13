@@ -11,9 +11,12 @@
 | `POST` | `{id}/decline` | `decline` | someone rung says no; someone already on the call leaves it |
 | `POST` | `{id}/hangup` | `hangup` | leave the call; it goes on for the others and ends once fewer than two are left |
 | `POST` | `{id}/invite` with `{callee}` | `invite` | add someone to the call I have joined |
+| `POST` | `{id}/hold` | `hold` | step out of a running call without leaving it; I stay on it as `on_hold` |
+| `POST` | `{id}/resume` with `{tab}` | `resume` | back into the call I put on hold; a call I am in meanwhile goes on hold instead |
+| `GET` | `people?q={words}&call={id}` | `people` | `{people: [{id, name, avatar}]}`: who I can ring, or add to that call; up to 8 |
 | `POST` | `{id}/signals` with `{type, payload, to?}` | `signal` | queue an `offer`, `answer`, `ice`, `reset` or `state` (mute, camera off, screen share) for one participant (`to`) or for everyone else on the call |
 | `POST` | `{id}/leave` with `{tab}` | `leave` | a beacon as the window unloads: the side is free for the next page |
-| `GET` | `poll?after={cursor}&call={id}&tab={tab}&hold=1&kind=call` | `poll` | `{call, incoming, signals, cursor}`, see below |
+| `GET` | `poll?after={cursor}&call={id}&tab={tab}&hold=1&kind=call` | `poll` | `{call, incoming, on_hold, signals, cursor}`, see below |
 | `GET` | `ice-servers` | `ice` | `{iceServers, iceTransportPolicy}`, asked when a call starts and never cached |
 | `GET` | `window?call={id}&callee={user}` | `window` | the widget's [pop-out page](the-widget.md#the-pop-out-window); left out with `window: false` |
 
@@ -27,10 +30,11 @@ One request, repeated by every window: every 5 seconds without a call, every sec
 
 - `call`: the call this window names with `call=`, or else any call I have joined and not left, for a page that just loaded. A call named with `call=` is returned after it ended too, so the window learns the `end_reason`.
 - `incoming`: a call ringing me, if any.
+- `on_hold`: the call I put on hold, if any. It is no window's `call` meanwhile, and every poll of mine keeps it: someone on hold who stops polling for `hold_timeout` seconds is dropped from the call.
 - `signals`: my new signals after `after`, as `{id, call, type, payload, from}`, at most 100 per poll. Only the window that holds my side gets them.
 - `cursor`: the last signal id, for the next `after`.
 
-`hold=1` asks for this window to hold my side of the call named by `call=`, and doubles as the heartbeat the other side watches. `kind` limits `call` and `incoming` to calls of that kind; the widget sends `kind=call`. Each poll also marks people who did not answer in time as missed and people who went quiet as dropped.
+`hold=1` asks for this window to hold my side of the call named by `call=`, and doubles as the heartbeat the other side watches (it is about windows, and has nothing to do with a call on hold). `kind` limits `call` and `incoming` to calls of that kind; the widget sends `kind=call`. Each poll also marks people who did not answer in time as missed and people who went quiet as dropped.
 
 ## Windows and reconnecting
 

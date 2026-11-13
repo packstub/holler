@@ -10,6 +10,7 @@
       options  extra CallWidget options, e.g. ['labels' => [...], 'root' => null]; `templates` and
                `icons` cannot be JSON, pass those from a script of your own (see the README)
       name     the global the widget is kept in (window.holler), for your own scripts
+      nonce    the Content-Security-Policy nonce for the script and the stylesheet (Vite::cspNonce() when set)
 
     Renders nothing for a visitor who is not signed in, so it can sit in a layout the login page shares.
 --}}
@@ -20,12 +21,14 @@
     'options' => [],
     'name' => 'holler',
     'inPopOut' => false,
+    'nonce' => null,
 ])
 
 @if (\Packstub\Holler\Facades\Holler::currentUserId() !== null)
 @php
     $context = \Packstub\Holler\Facades\Holler::context();
     $popOut ??= (bool) config('holler.pop_out', true);
+    $nonce ??= \Illuminate\Support\Facades\Vite::cspNonce();
     // Recursive, so a partial `labels` (or `poll`) keeps the rest: the translations, the configured pace.
     $config = array_replace_recursive([
         'routes' => [
@@ -37,6 +40,10 @@
             'signal' => route($routes.'signal', ['call' => '__ID__']),
             'leave' => route($routes.'leave', ['call' => '__ID__']),
             'invite' => route($routes.'invite', ['call' => '__ID__']),
+            'hold' => route($routes.'hold', ['call' => '__ID__']),
+            'resume' => route($routes.'resume', ['call' => '__ID__']),
+            // No route, no "Add someone" button.
+            'people' => config('holler.people_search', true) ? route($routes.'people') : null,
             'ice' => route($routes.'ice'),
         ],
         'windowUrl' => $popOut || $inPopOut ? route($routes.'window', ['call' => '__ID__', 'callee' => '__USER__']) : null,
@@ -54,12 +61,14 @@
 @endphp
 
 @if ($styles)
-    <link rel="stylesheet" href="{{ \Packstub\Holler\Facades\Holler::asset('widget.css') }}">
+    <link rel="stylesheet" href="{{ \Packstub\Holler\Facades\Holler::asset('widget.css') }}" @if (filled($nonce)) nonce="{{ $nonce }}" @endif>
 @endif
-<script type="module" data-holler-widget>
+<script type="module" data-holler-widget @if (filled($nonce)) nonce="{{ $nonce }}" @endif>
     import { CallWidget } from '{{ \Packstub\Holler\Facades\Holler::asset('widget.js') }}'
 
-    window['{{ $name }}'] = new CallWidget({!! json_encode($config, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_THROW_ON_ERROR) !!})
-    window.dispatchEvent(new CustomEvent('holler:ready', { detail: { widget: window['{{ $name }}'] } }))
+    const name = {{ \Illuminate\Support\Js::from((string) $name) }}
+
+    window[name] = new CallWidget({!! json_encode($config, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_THROW_ON_ERROR) !!})
+    window.dispatchEvent(new CustomEvent('holler:ready', { detail: { widget: window[name] } }))
 </script>
 @endif

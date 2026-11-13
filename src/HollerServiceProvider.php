@@ -2,9 +2,11 @@
 
 namespace Packstub\Holler;
 
+use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull;
 use Illuminate\Foundation\Http\Middleware\TrimStrings;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
 use Packstub\Holler\Commands\PruneCommand;
 use Packstub\Holler\Contracts\CallContext;
@@ -50,5 +52,17 @@ class HollerServiceProvider extends PackageServiceProvider
         $signals = fn (Request $request): bool => $request->is('*calls/*/signals');
         TrimStrings::skipWhen($signals);
         ConvertEmptyStringsToNull::skipWhen($signals);
+
+        // Nobody rings people, or walks through the user list, faster than a person would.
+        foreach (['calls' => 30, 'people' => 60] as $name => $default) {
+            RateLimiter::for('holler-'.$name, function (Request $request) use ($name, $default): Limit {
+                $perMinute = (int) config('holler.rate_limits.'.$name, $default);
+                $holler = $this->app->make(Holler::class);
+
+                return $perMinute > 0
+                    ? Limit::perMinute($perMinute)->by($holler->scope().'|'.($holler->currentUserId() ?? $request->ip()))
+                    : Limit::none();
+            });
+        }
     }
 }

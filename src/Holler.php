@@ -13,9 +13,12 @@ use Packstub\Holler\Contracts\CallContext;
 use Packstub\Holler\Events\CallAnswered;
 use Packstub\Holler\Events\CallEnded;
 use Packstub\Holler\Events\CallStarted;
+use Packstub\Holler\Events\ParticipantHeld;
 use Packstub\Holler\Events\ParticipantJoined;
 use Packstub\Holler\Events\ParticipantLeft;
+use Packstub\Holler\Events\ParticipantResumed;
 use Packstub\Holler\Exceptions\CalleeBusy;
+use Packstub\Holler\Exceptions\CallException;
 use Packstub\Holler\Exceptions\CallFull;
 use Packstub\Holler\Exceptions\CallHasEnded;
 use Packstub\Holler\Exceptions\CallNotAllowed;
@@ -39,14 +42,18 @@ use Packstub\Holler\Models\CallSignal;
  * A call has a participant per person: the caller, joined from the start at seat
  * 0, and every invitee ringing at the next seat. Between two participants the
  * lower seat makes the WebRTC offer. Someone who hangs up leaves the call for the
- * others; the call ends once fewer than two people are left on it.
+ * others; the call ends once fewer than two people are left on it. Someone who
+ * puts the call on hold stays on it without a window or media until they resume.
  */
 class Holler
 {
     use Macroable;
 
+    /** How many matches a people search looks through for the few it shows. */
+    public const SEARCH_CANDIDATES = 200;
+
     /**
-     * Register the nine JSON routes and the widget's pop-out page under `{prefix}/`, named `{as}poll`, `{as}store`…
+     * Register the twelve JSON routes and the widget's pop-out page under `{prefix}/`, named `{as}poll`, `{as}store`…
      *
      * @param  array<int, string> | string | null  $middleware  null: `auth`, on the `guard` from the config when one is set
      * @param  bool  $window  also the widget's pop-out page, `GET {prefix}/window`
@@ -60,11 +67,16 @@ class Holler
             Route::get('poll', [CallsController::class, 'poll'])->name('poll');
             // Asked when a call starts, so short-lived TURN credentials are fresh for each call.
             Route::get('ice-servers', [CallsController::class, 'ice'])->name('ice');
-            Route::post('/', [CallsController::class, 'store'])->name('store');
+            // Ringing and searching are paced per person (`rate_limits` in the config); polls and signals are not.
+            Route::post('/', [CallsController::class, 'store'])->name('store')->middleware('throttle:holler-calls');
             Route::post('{call}/answer', [CallsController::class, 'answer'])->name('answer')->whereNumber('call');
             Route::post('{call}/decline', [CallsController::class, 'decline'])->name('decline')->whereNumber('call');
             Route::post('{call}/hangup', [CallsController::class, 'hangup'])->name('hangup')->whereNumber('call');
-            Route::post('{call}/invite', [CallsController::class, 'invite'])->name('invite')->whereNumber('call');
+            Route::post('{call}/invite', [CallsController::class, 'invite'])->name('invite')->whereNumber('call')->middleware('throttle:holler-calls');
+            Route::post('{call}/hold', [CallsController::class, 'hold'])->name('hold')->whereNumber('call');
+            Route::post('{call}/resume', [CallsController::class, 'resume'])->name('resume')->whereNumber('call');
+            // Who can be added to a call: the search behind the widget's "Add someone".
+            Route::get('people', [CallsController::class, 'people'])->name('people')->middleware('throttle:holler-people');
             Route::post('{call}/signals', [CallsController::class, 'signal'])->name('signal')->whereNumber('call');
             Route::post('{call}/leave', [CallsController::class, 'leave'])->name('leave')->whereNumber('call');
             // The pop-out page of `<x-holler::widget />`; a package with a window of its own passes `window: false`.
@@ -187,7 +199,8 @@ class Holler
     /**
      * Ring one person, or several at once. Any call the caller is still on is
      * left first (and ends if that leaves fewer than two people on it), once
-     * every check passed: a refused call leaves the current one alone.
+     * every check passed: a refused call leaves the current one alone. A call
+     * the caller put on hold stays as it is.
      *
      * A `Participant` is someone made in code (a visitor, say): rung as given,
      * named as given, without asking the context, since the code that made it
@@ -232,7 +245,8 @@ class Holler
             throw new CallFull(__('holler::messages.full', ['max' => $this->maxParticipants()]));
         }
 
-        $mine = $this->openCallsOf($me, $scope);
+        // The calls I leave for this one; a call I put on hold waits for me.
+        $mine = $this->openCallsOf($me, $scope)->reject(fn (Call $call) => $call->participant($me)?->isOnHold())->values();
 
         foreach ($people as $person) {
             $id = static::idOf($person);
@@ -242,7 +256,8 @@ class Holler
 
             // A call with me on it does not count when my leaving ends it, or when they only ring
             // on it (two people ringing each other, say); a call they are in with others does.
-            $busy = $theirs->contains(fn (Call $call) => ! $call->isEnded() && (
+            // Nor does a call they put on hold themselves: they stepped out of that one.
+            $busy = $theirs->contains(fn (Call $call) => ! $call->isEnded() && ! $call->participant($id)?->isOnHold() && (
                 ! $mine->contains(fn (Call $own) => $own->is($call))
                 || ($call->participant($id)?->isJoined() && $call->live()->count() > 2)
             ));
@@ -357,7 +372,7 @@ class Holler
                 throw new CallFull(__('holler::messages.full', ['max' => $this->maxParticipants()]));
             }
 
-            if ($this->openCallsOf($personId, $call->scope)->isNotEmpty()) {
+            if ($this->openCallsOf($personId, $call->scope)->contains(fn (Call $other) => ! $other->participant($personId)?->isOnHold())) {
                 throw new CalleeBusy(__('holler::messages.busy'));
             }
 
@@ -429,6 +444,107 @@ class Holler
         return $call;
     }
 
+    /**
+     * Step out of a call without leaving it: my side goes on hold, my window lets go of
+     * it and the others stay on the call, where they see me as `on_hold`. One call on
+     * hold per person; `resume()` brings me back.
+     *
+     * @throws CallHasEnded
+     * @throws CallNotAllowed not in the call, the call still rings, or another call is on hold already
+     */
+    public function hold(Call $call, string $userId): Call
+    {
+        // Looked at before the lock: never two calls locked at once.
+        if ($this->openCallsOf($userId, $call->scope)->contains(fn (Call $other) => ! $other->is($call) && $other->participant($userId)?->isOnHold())) {
+            throw new CallNotAllowed(__('holler::messages.already_holding'));
+        }
+
+        $this->putOnHold($call, $userId);
+
+        return $call;
+    }
+
+    /**
+     * Come back to a call I put on hold; my window then connects afresh, the way a page
+     * does after a reload. A call I am in meanwhile goes on hold in its place (a swap),
+     * and one I am still ringing someone on is given up.
+     *
+     * @throws CallHasEnded
+     * @throws CallNotAllowed the call is not on hold for this person
+     */
+    public function resume(Call $call, string $userId, ?string $tab = null): Call
+    {
+        if (! $call->isEnded() && $call->participant($userId)?->isOnHold()) {
+            foreach ($this->openCallsOf($userId, $call->scope) as $other) {
+                $mine = $other->participant($userId);
+
+                if ($other->is($call) || ! $mine?->isJoined()) {
+                    continue;
+                }
+
+                try {
+                    $other->isActive() ? $this->putOnHold($other, $userId) : $this->withdraw($other, $mine);
+                } catch (CallException) {
+                    // It ended meanwhile: nothing left to put on hold.
+                }
+            }
+        }
+
+        $me = $this->transaction(function () use ($call, $userId, $tab): CallParticipant {
+            $this->lock($call);
+            $me = $call->participant($userId);
+
+            if ($call->isEnded()) {
+                throw new CallHasEnded(__('holler::messages.ended'));
+            }
+
+            if (! $me?->isOnHold()) {
+                throw new CallNotAllowed(__('holler::messages.not_on_hold'));
+            }
+
+            // Seen now, so the reconnect timeout counts from the resume while the window connects.
+            $me->forceFill(['status' => CallParticipant::JOINED, 'tab' => $tab, 'seen_at' => now()])->save();
+
+            return $me;
+        });
+
+        ParticipantResumed::dispatch($call, $me);
+
+        return $call;
+    }
+
+    /** Under a lock on the call: someone in a running call steps out of it; twice is once. */
+    protected function putOnHold(Call $call, string $userId): void
+    {
+        $held = $this->transaction(function () use ($call, $userId): ?CallParticipant {
+            $this->lock($call);
+            $me = $call->participant($userId);
+
+            if ($call->isEnded()) {
+                throw new CallHasEnded(__('holler::messages.ended'));
+            }
+
+            if ($me?->isOnHold()) {
+                return null;
+            }
+
+            if (! $call->isActive() || ! $me?->isJoined()) {
+                throw new CallNotAllowed(__('holler::messages.cannot_hold'));
+            }
+
+            // `seen_at` goes on as the heartbeat of someone away: their polls keep the hold (see `poll()`).
+            $me->forceFill(['status' => CallParticipant::ON_HOLD, 'tab' => null, 'seen_at' => now()])->save();
+            // What was on its way to the connection I just closed; I start over when I resume.
+            CallSignal::query()->where('call_id', $call->getKey())->where('to_user_id', $userId)->delete();
+
+            return $me;
+        });
+
+        if ($held) {
+            ParticipantHeld::dispatch($call, $held);
+        }
+    }
+
     /** Someone rung says no (declined); someone already on the call leaves it. */
     public function decline(Call $call, string $userId): Call
     {
@@ -480,13 +596,14 @@ class Holler
             }
 
             $participant->forceFill([
-                'status' => $status ?? ($participant->isJoined() ? CallParticipant::LEFT : CallParticipant::DECLINED),
+                'status' => $status ?? ($participant->isRinging() ? CallParticipant::DECLINED : CallParticipant::LEFT),
                 'tab' => null,
                 'left_at' => now(),
             ])->save();
 
             $live = $call->live();
-            $joined = $live->filter(fn (CallParticipant $other) => $other->isJoined());
+            // Someone away with the call on hold is still in it: the call waits for them.
+            $joined = $live->filter(fn (CallParticipant $other) => $other->isJoined() || $other->isOnHold());
 
             $reason = match (true) {
                 $call->isRinging() && $participant->user_id === $call->caller_id => 'cancelled',
@@ -544,7 +661,8 @@ class Holler
      * Queue one signaling message (offer, answer, ice, reset, state) for one
      * participant, or for everyone else on the call when `$to` is null. Returns
      * the last signal written, null when nobody else is left to receive it.
-     * Only someone in the call sends: not someone still ringing or gone.
+     * Only someone in the call sends: not someone still ringing, on hold or gone;
+     * and nothing is kept for someone on hold, who connects afresh on resuming.
      *
      * @param  array<string, mixed>  $payload
      *
@@ -566,7 +684,7 @@ class Holler
         $this->assertSignalFits($payload);
         $this->assertRoomForSignals($call, $fromUserId);
 
-        $recipients = $call->live()->filter(fn (CallParticipant $participant) => $participant->user_id !== $fromUserId);
+        $recipients = $call->live()->filter(fn (CallParticipant $participant) => $participant->user_id !== $fromUserId && ! $participant->isOnHold());
 
         if ($to !== null) {
             if (! $call->involves($to)) {
@@ -594,7 +712,8 @@ class Holler
     /**
      * Mark this user's stale calls: someone rung past `ring_timeout` is missed (and a
      * call nobody answered ends as missed), someone away past `reconnect_timeout`
-     * is dropped (and a call that leaves fewer than two people ends as dropped).
+     * is dropped (and a call that leaves fewer than two people ends as dropped),
+     * and so is someone who put the call on hold and has not polled for `hold_timeout`.
      */
     public function expire(string $userId): void
     {
@@ -615,6 +734,11 @@ class Holler
         $missed = fn (CallParticipant $participant): bool => $participant->isRinging() && $participant->invited_at?->lt($ringDeadline) === true;
         $dropped = fn (CallParticipant $participant, Call $call): bool => $participant->isJoined() && $call->isActive()
             && ($participant->seen_at ?? $participant->joined_at)?->lt($dropDeadline) === true;
+        // Away with the call on hold, and no window of theirs has polled since: they closed everything.
+        $holdTimeout = (int) config('holler.hold_timeout', 120);
+        $holdDeadline = now()->subSeconds($holdTimeout);
+        $abandoned = fn (CallParticipant $participant): bool => $holdTimeout > 0 && $participant->isOnHold()
+            && $participant->seen_at?->lt($holdDeadline) === true;
 
         foreach ($calls as $call) {
             foreach ($call->live() as $participant) {
@@ -623,6 +747,8 @@ class Holler
                     $this->withdrawIf($call, $participant, CallParticipant::MISSED, $missed);
                 } elseif ($dropped($participant, $call)) {
                     $this->withdrawIf($call, $participant, CallParticipant::DROPPED, $dropped);
+                } elseif ($abandoned($participant)) {
+                    $this->withdrawIf($call, $participant, CallParticipant::DROPPED, $abandoned);
                 }
             }
         }
@@ -631,14 +757,25 @@ class Holler
     /**
      * What a window learns on each poll: the call it is on (held by it from then
      * on when it asks to `hold`, which is also its heartbeat) or any open call of
-     * mine for a page that just loaded, a call ringing me, and my new signals;
-     * only calls of `$kind` when given.
+     * mine for a page that just loaded, a call ringing me, the call I put on hold
+     * (`on_hold`; asking is the heartbeat that keeps it) and my new signals; only
+     * calls of `$kind` when given.
      *
-     * @return array{call: ?array<string, mixed>, incoming: ?array<string, mixed>, signals: array<int, array<string, mixed>>, cursor: int}
+     * @return array{call: ?array<string, mixed>, incoming: ?array<string, mixed>, on_hold: ?array<string, mixed>, signals: array<int, array<string, mixed>>, cursor: int}
      */
     public function poll(string $me, int $after = 0, ?int $currentId = null, ?string $tab = null, bool $hold = false, ?string $kind = null): array
     {
         $open = $this->openCallsOf($me);
+
+        // Before anything expires: a poll from any window of mine keeps the call I put on hold.
+        foreach ($open as $call) {
+            $mine = $call->participant($me);
+
+            if ($mine?->isOnHold() && $mine->seen_at?->gt(now()->subSeconds(Call::HOLD_SECONDS)) !== true) {
+                $mine->forceFill(['seen_at' => now()])->save();
+            }
+        }
+
         $this->expireCalls($open);
 
         // A window polls for the kind it draws: the widget never even hears of another package's calls.
@@ -652,7 +789,8 @@ class Holler
 
         // Not mine, or no longer mine: someone who left a call that goes on for the others
         // is done with it (an ended call is still shown, so the window learns the reason).
-        if ($current && (! $current->involves($me) || ! $this->inScope($current, $me) || ($kind !== null && $current->kind !== $kind) || (! $current->isEnded() && ! $current->participant($me)->isLive()))) {
+        // A call I put on hold is not this window's call either: it comes back as `on_hold`.
+        if ($current && (! $current->involves($me) || ! $this->inScope($current, $me) || ($kind !== null && $current->kind !== $kind) || (! $current->isEnded() && (! $current->participant($me)->isLive() || $current->participant($me)->isOnHold())))) {
             $current = null;
         }
 
@@ -680,9 +818,12 @@ class Holler
             ? CallSignal::query()->where('call_id', $current->getKey())->where('to_user_id', $me)->where('id', '>', $after)->orderBy('id')->limit(100)->get()
             : collect();
 
+        $onHold = $open->first(fn (Call $call) => ! $call->isEnded() && $call->participant($me)?->isOnHold());
+
         return [
             'call' => $current ? $this->present($current, $me, $tab) : null,
             'incoming' => $incoming ? $this->present($incoming, $me, $tab) : null,
+            'on_hold' => $onHold ? $this->present($onHold, $me, $tab) : null,
             'signals' => $signals->map(fn (CallSignal $signal) => [
                 'id' => $signal->id,
                 'call' => $signal->call_id,
@@ -724,7 +865,7 @@ class Holler
 
     /**
      * A call as one person sees it: everyone else on it (`peers`, with seat, status
-     * and heartbeat), my seat, whether I joined, plus `peer`, `peer_held` and
+     * and heartbeat), my seat, whether I joined or put it on hold, plus `peer`, `peer_held` and
      * `peer_seen_ago` for the first peer, which is all a 1-on-1 client reads.
      *
      * @return array<string, mixed>
@@ -760,6 +901,8 @@ class Holler
             'role' => $call->sideOf($me),
             'seat' => $mine?->seat,
             'joined' => $mine?->isJoined() ?? false,
+            // I stepped out of it (`hold()`); nothing to do with `held`, which is about windows.
+            'on_hold' => $mine?->isOnHold() ?? false,
             'peers' => $peers->all(),
             'peer' => $first ? ['id' => $first['id'], 'name' => $first['name'], 'avatar' => $first['avatar']] : null,
             'answered_at' => $call->answered_at?->toIso8601String(),
@@ -771,6 +914,49 @@ class Holler
     }
 
     /**
+     * Who this person can ring, or add to `$call`: what the context's `searchUsers()` finds
+     * for the words typed, without the person asking, anyone `canCall()` refuses, and, for
+     * a call, anyone already on it or kept apart from someone on it. Nobody at all when
+     * `people_search` is off.
+     *
+     * @return array<int, array{id: string, name: string, avatar: ?string}>
+     */
+    public function people(Authenticatable $me, string $query = '', ?Call $call = null, int $limit = 8): array
+    {
+        if (! config('holler.people_search', true)) {
+            return [];
+        }
+
+        $context = $this->context();
+        $myId = (string) $me->getAuthIdentifier();
+        $onCall = $call ? $call->live()->pluck('user_id')->all() : [];
+        $others = $this->findUsers(array_values(array_filter($onCall, fn (string $id) => $id !== $myId && ! Participant::isGuestId($id))));
+        $people = [];
+
+        // Far more than shown, since some are filtered out below: where the context keeps most
+        // people apart (tenants sharing one users table), the first few matches may all be strangers.
+        foreach ($context->searchUsers($me, mb_substr(trim($query), 0, 64), max($limit, static::SEARCH_CANDIDATES)) as $user) {
+            $id = (string) $user->getAuthIdentifier();
+
+            if ($id === $myId || isset($people[$id]) || in_array($id, $onCall, true) || ! $context->canCall($me, $user)) {
+                continue;
+            }
+
+            if (collect($others)->contains(fn (Authenticatable $other) => ! $context->canCall($other, $user))) {
+                continue;
+            }
+
+            $people[$id] = $this->who($user);
+
+            if (count($people) >= $limit) {
+                break;
+            }
+        }
+
+        return array_values($people);
+    }
+
+    /**
      * Name and avatar for each of these people, by id, in one lookup when the context
      * offers `findUsers()` (the shipped contexts do); someone not found is "Someone".
      *
@@ -779,14 +965,9 @@ class Holler
      */
     public function whoAre(array $userIds): array
     {
-        $context = $this->context();
-        $users = method_exists($context, 'findUsers')
-            ? $context->findUsers($userIds)
-            : array_filter(array_map(fn (string $id) => $context->findUser($id), $userIds));
-
         $found = [];
 
-        foreach ($users as $user) {
+        foreach ($this->findUsers($userIds) as $user) {
             $found[(string) $user->getAuthIdentifier()] = $this->who($user);
         }
 
@@ -797,6 +978,19 @@ class Holler
         }
 
         return $people;
+    }
+
+    /**
+     * @param  array<int, string>  $userIds
+     * @return array<int, Authenticatable>
+     */
+    protected function findUsers(array $userIds): array
+    {
+        $context = $this->context();
+
+        return method_exists($context, 'findUsers')
+            ? $context->findUsers($userIds)
+            : array_values(array_filter(array_map(fn (string $id) => $context->findUser($id), $userIds)));
     }
 
     /**

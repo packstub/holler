@@ -38,6 +38,17 @@ interface CallContext
     public function canCall(Authenticatable $caller, Authenticatable $callee): bool;
 
     /**
+     * The users matching what someone typed into the widget's "Add someone" (everyone to
+     * suggest when `$query` is empty), at most `$limit`. `canCall()` is asked for each
+     * one afterwards, and only until enough people are found: `$limit` is far above what is
+     * shown, so narrow the query to the people the caller may call where you can, and return
+     * a lazy collection or a cursor rather than loading them all. Return nothing to offer no search.
+     *
+     * @return iterable<Authenticatable>
+     */
+    public function searchUsers(Authenticatable $caller, string $query, int $limit): iterable;
+
+    /**
      * Passed to RTCPeerConnection as is: STUN, and TURN where a direct path fails.
      *
      * @return array<int, array<string, mixed>>
