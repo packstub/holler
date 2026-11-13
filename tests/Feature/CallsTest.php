@@ -59,7 +59,7 @@ it('shows the callee the incoming call and the caller the call they are in', fun
         ->assertJsonPath('incoming.peer.name', 'Ion')
         ->assertJsonPath('call', null);
 
-    $this->actingAs($this->ion)->getJson(callsRoute('poll', ['call' => $call->id, 'tab' => 'tab', 'hold' => 1]))
+    $this->actingAs($this->ion)->getJson(callsRoute('poll', ['call' => $call->id, 'tab' => 'tab', 'claim' => 1]))
         ->assertJsonPath('call.status', 'ringing')
         ->assertJsonPath('incoming', null);
 });
@@ -74,13 +74,13 @@ it('delivers signals in order, only to the other side and only after the callee 
     $this->actingAs($this->ana)->getJson(callsRoute('poll'))->assertJsonCount(0, 'signals')->assertJsonPath('cursor', 0);
 
     // The caller never sees their own signals.
-    $this->actingAs($this->ion)->getJson(callsRoute('poll', ['call' => $call->id, 'tab' => 'tab', 'hold' => 1]))->assertJsonCount(0, 'signals');
+    $this->actingAs($this->ion)->getJson(callsRoute('poll', ['call' => $call->id, 'tab' => 'tab', 'claim' => 1]))->assertJsonCount(0, 'signals');
 
     Event::fake([CallAnswered::class]);
     $this->actingAs($this->ana)->postJson(callsRoute('answer', ['call' => $call]))->assertOk()->assertJsonPath('status', 'active');
     Event::assertDispatched(CallAnswered::class);
 
-    $response = $this->actingAs($this->ana)->getJson(callsRoute('poll', ['call' => $call->id, 'tab' => 'tab', 'hold' => 1]))
+    $response = $this->actingAs($this->ana)->getJson(callsRoute('poll', ['call' => $call->id, 'tab' => 'tab', 'claim' => 1]))
         ->assertJsonPath('call.status', 'active')
         ->assertJsonPath('signals.0.type', 'offer')
         ->assertJsonPath('signals.0.payload.sdp', 'v=0 offer')
@@ -89,10 +89,10 @@ it('delivers signals in order, only to the other side and only after the callee 
     $cursor = $response->json('cursor');
     expect($cursor)->toBe(CallSignal::query()->max('id'));
 
-    $this->actingAs($this->ana)->getJson(callsRoute('poll', ['call' => $call->id, 'tab' => 'tab', 'hold' => 1, 'after' => $cursor]))->assertJsonCount(0, 'signals')->assertJsonPath('cursor', $cursor);
+    $this->actingAs($this->ana)->getJson(callsRoute('poll', ['call' => $call->id, 'tab' => 'tab', 'claim' => 1, 'after' => $cursor]))->assertJsonCount(0, 'signals')->assertJsonPath('cursor', $cursor);
 
     $this->actingAs($this->ana)->postJson(callsRoute('signal', ['call' => $call]), ['type' => 'answer', 'payload' => ['sdp' => 'v=0 answer']])->assertCreated();
-    $this->actingAs($this->ion)->getJson(callsRoute('poll', ['call' => $call->id, 'tab' => 'tab', 'hold' => 1]))->assertJsonPath('signals.0.type', 'answer');
+    $this->actingAs($this->ion)->getJson(callsRoute('poll', ['call' => $call->id, 'tab' => 'tab', 'claim' => 1]))->assertJsonPath('signals.0.type', 'answer');
 });
 
 it('relays a state signal (mute, camera, screen share) like any other', function (): void {
@@ -101,7 +101,7 @@ it('relays a state signal (mute, camera, screen share) like any other', function
 
     $this->actingAs($this->ion)->postJson(callsRoute('signal', ['call' => $call]), ['type' => 'state', 'payload' => ['muted' => true, 'cameraOff' => false, 'sharing' => false, 'session' => 's1']])->assertCreated();
 
-    $this->actingAs($this->ana)->getJson(callsRoute('poll', ['call' => $call->id, 'tab' => 'ana-tab', 'hold' => 1]))
+    $this->actingAs($this->ana)->getJson(callsRoute('poll', ['call' => $call->id, 'tab' => 'ana-tab', 'claim' => 1]))
         ->assertJsonPath('signals.0.type', 'state')
         ->assertJsonPath('signals.0.payload.muted', true)
         ->assertJsonPath('signals.0.payload.session', 's1');
@@ -117,7 +117,7 @@ it('rejects an unknown signal type and a signal from a bystander', function (): 
     $this->actingAs($mihai)->postJson(callsRoute('hangup', ['call' => $call]))->assertForbidden();
     $this->actingAs($mihai)->postJson(callsRoute('decline', ['call' => $call]))->assertForbidden();
     $this->actingAs($mihai)->post(callsRoute('leave', ['call' => $call]), ['tab' => 't'])->assertForbidden();
-    $this->actingAs($mihai)->getJson(callsRoute('poll', ['call' => $call->id, 'tab' => 'tab', 'hold' => 1]))->assertJsonPath('call', null);
+    $this->actingAs($mihai)->getJson(callsRoute('poll', ['call' => $call->id, 'tab' => 'tab', 'claim' => 1]))->assertJsonPath('call', null);
 });
 
 it('lets the callee decline and the caller learn about it', function (): void {
@@ -126,7 +126,7 @@ it('lets the callee decline and the caller learn about it', function (): void {
 
     $this->actingAs($this->ana)->postJson(callsRoute('decline', ['call' => $call]))->assertOk()->assertJsonPath('end_reason', 'declined');
 
-    $this->actingAs($this->ion)->getJson(callsRoute('poll', ['call' => $call->id, 'tab' => 'tab', 'hold' => 1]))
+    $this->actingAs($this->ion)->getJson(callsRoute('poll', ['call' => $call->id, 'tab' => 'tab', 'claim' => 1]))
         ->assertJsonPath('call.status', 'ended')
         ->assertJsonPath('call.end_reason', 'declined');
 
@@ -158,7 +158,7 @@ it('marks a call nobody answered as missed', function (): void {
 
     $this->travel(config('holler.ring_timeout') + 1)->seconds();
 
-    $this->actingAs($this->ion)->getJson(callsRoute('poll', ['call' => $call->id, 'tab' => 'tab', 'hold' => 1]))
+    $this->actingAs($this->ion)->getJson(callsRoute('poll', ['call' => $call->id, 'tab' => 'tab', 'claim' => 1]))
         ->assertJsonPath('call.status', 'ended')
         ->assertJsonPath('call.end_reason', 'missed');
 
@@ -198,7 +198,7 @@ it('keeps a session description byte for byte, trailing CRLF included', function
     $sdp = "v=0\r\no=- 1 2 IN IP4 127.0.0.1\r\na=ssrc:1 msid:a b\r\n";
     $this->actingAs($this->ion)->postJson(callsRoute('signal', ['call' => $call]), ['type' => 'offer', 'payload' => ['sdp' => $sdp]])->assertCreated();
 
-    expect($this->actingAs($this->ana)->getJson(callsRoute('poll', ['call' => $call->id, 'tab' => 'tab', 'hold' => 1]))->json('signals.0.payload.sdp'))->toBe($sdp);
+    expect($this->actingAs($this->ana)->getJson(callsRoute('poll', ['call' => $call->id, 'tab' => 'tab', 'claim' => 1]))->json('signals.0.payload.sdp'))->toBe($sdp);
 });
 
 it('keeps an empty ICE candidate empty: Firefox ends its candidates with one', function (): void {
@@ -207,7 +207,7 @@ it('keeps an empty ICE candidate empty: Firefox ends its candidates with one', f
 
     $this->actingAs($this->ion)->postJson(callsRoute('signal', ['call' => $call]), ['type' => 'ice', 'payload' => ['candidate' => '', 'sdpMid' => '0', 'sdpMLineIndex' => 0]])->assertCreated();
 
-    expect($this->actingAs($this->ana)->getJson(callsRoute('poll', ['call' => $call->id, 'tab' => 'tab', 'hold' => 1]))->json('signals.0.payload'))
+    expect($this->actingAs($this->ana)->getJson(callsRoute('poll', ['call' => $call->id, 'tab' => 'tab', 'claim' => 1]))->json('signals.0.payload'))
         ->toBe(['candidate' => '', 'sdpMid' => '0', 'sdpMLineIndex' => 0]);
 });
 
@@ -215,7 +215,7 @@ it('names the other side "Someone" when their account is gone', function (): voi
     $call = ring($this->ion, $this->ana);
     $this->ana->delete();
 
-    $this->actingAs($this->ion)->getJson(callsRoute('poll', ['call' => $call->id, 'tab' => 'tab', 'hold' => 1]))
+    $this->actingAs($this->ion)->getJson(callsRoute('poll', ['call' => $call->id, 'tab' => 'tab', 'claim' => 1]))
         ->assertJsonPath('call.peer.name', 'Someone')
         ->assertJsonPath('call.peer.id', (string) $this->ana->getKey());
 });

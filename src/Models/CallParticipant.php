@@ -88,10 +88,10 @@ class CallParticipant extends Model
         return in_array($this->status, self::LIVE, true);
     }
 
-    /** Whether a live window holds this side: a tab is set and polled within HOLD_SECONDS. */
-    public function isHeld(): bool
+    /** Whether a live window has claimed this side: a tab is set and polled within CLAIM_SECONDS. */
+    public function isClaimed(): bool
     {
-        return $this->tab !== null && $this->seen_at?->gt(now()->subSeconds(Call::HOLD_SECONDS)) === true;
+        return $this->tab !== null && $this->seen_at?->gt(now()->subSeconds(Call::CLAIM_SECONDS)) === true;
     }
 
     /** Seconds since this side's window last polled, null if it never did. */
@@ -103,27 +103,27 @@ class CallParticipant extends Model
     /**
      * Give this side to a window: free, already its own, or left by a window that
      * stopped polling. One UPDATE, so two windows polling at once cannot both win.
-     * Returns whether the window holds the side now; sets $reclaimed when it took
+     * Returns whether the window has the side now; sets $reclaimed when it took
      * over from another (or no) window.
      */
     public function claim(string $tab, ?bool &$reclaimed = null): bool
     {
         $previous = $this->tab;
-        $heldBefore = $this->seen_at !== null;
+        $claimedBefore = $this->seen_at !== null;
 
         $claimed = static::query()->whereKey($this->getKey())
             ->where(fn ($query) => $query
                 ->whereNull('tab')
                 ->orWhere('tab', $tab)
-                ->orWhere('seen_at', '<', now()->subSeconds(Call::HOLD_SECONDS)))
+                ->orWhere('seen_at', '<', now()->subSeconds(Call::CLAIM_SECONDS)))
             ->update(['tab' => $tab, 'seen_at' => now()]) === 1;
 
         if ($claimed) {
             $this->forceFill(['tab' => $tab, 'seen_at' => now()])->syncOriginal();
         }
 
-        // Taking over from another window (or one that left) is a reclaim; a side nobody ever held is not.
-        $reclaimed = $claimed && $heldBefore && $previous !== $tab;
+        // Taking over from another window (or one that left) is a reclaim; a side nobody ever claimed is not.
+        $reclaimed = $claimed && $claimedBefore && $previous !== $tab;
 
         return $claimed;
     }

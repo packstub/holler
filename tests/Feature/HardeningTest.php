@@ -249,7 +249,7 @@ it('deletes the signals a window read, and refuses more once too many wait unrea
     $read = Holler::poll(id($this->ana), 0, $call->id, 'ana-1', true);
     expect($read['signals'])->toHaveCount(3)->and(CallSignal::query()->count())->toBe(3);
 
-    // A poll that does not hold the side deletes nothing.
+    // A poll that does not claim the side deletes nothing.
     Holler::poll(id($this->ana), $read['cursor'], $call->id, 'ana-2', true);
     expect(CallSignal::query()->count())->toBe(3);
 

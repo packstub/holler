@@ -755,15 +755,15 @@ class Holler
     }
 
     /**
-     * What a window learns on each poll: the call it is on (held by it from then
-     * on when it asks to `hold`, which is also its heartbeat) or any open call of
+     * What a window learns on each poll: the call it is on (claimed by it from then
+     * on when it asks to `claim` it, which is also its heartbeat) or any open call of
      * mine for a page that just loaded, a call ringing me, the call I put on hold
      * (`on_hold`; asking is the heartbeat that keeps it) and my new signals; only
      * calls of `$kind` when given.
      *
      * @return array{call: ?array<string, mixed>, incoming: ?array<string, mixed>, on_hold: ?array<string, mixed>, signals: array<int, array<string, mixed>>, cursor: int}
      */
-    public function poll(string $me, int $after = 0, ?int $currentId = null, ?string $tab = null, bool $hold = false, ?string $kind = null): array
+    public function poll(string $me, int $after = 0, ?int $currentId = null, ?string $tab = null, bool $claim = false, ?string $kind = null): array
     {
         $open = $this->openCallsOf($me);
 
@@ -771,7 +771,7 @@ class Holler
         foreach ($open as $call) {
             $mine = $call->participant($me);
 
-            if ($mine?->isOnHold() && $mine->seen_at?->gt(now()->subSeconds(Call::HOLD_SECONDS)) !== true) {
+            if ($mine?->isOnHold() && $mine->seen_at?->gt(now()->subSeconds(Call::CLAIM_SECONDS)) !== true) {
                 $mine->forceFill(['seen_at' => now()])->save();
             }
         }
@@ -794,13 +794,13 @@ class Holler
             $current = null;
         }
 
-        $held = false;
+        $claimed = false;
 
-        if ($current && $currentId && $tab && $hold && ! $current->isEnded() && $current->participant($me)->isLive()) {
-            $held = $current->participant($me)->claim($tab, $reclaimed);
+        if ($current && $currentId && $tab && $claim && ! $current->isEnded() && $current->participant($me)->isLive()) {
+            $claimed = $current->participant($me)->claim($tab, $reclaimed);
 
-            // The window that holds the side read everything up to its cursor: those signals are done with.
-            if ($held && $after > 0) {
+            // The window that has the side read everything up to its cursor: those signals are done with.
+            if ($claimed && $after > 0) {
                 CallSignal::query()->where('call_id', $current->getKey())->where('to_user_id', $me)->where('id', '<=', $after)->delete();
             }
 
@@ -813,8 +813,8 @@ class Holler
 
         $incoming = $open->first(fn (Call $call) => ! $call->isEnded() && $call->participant($me)?->isRinging() && ! $current?->is($call));
 
-        // Signals only flow to the window that holds the side: a callee gets the offers once they answer.
-        $signals = $held
+        // Signals only flow to the window that claimed the side: a callee gets the offers once they answer.
+        $signals = $claimed
             ? CallSignal::query()->where('call_id', $current->getKey())->where('to_user_id', $me)->where('id', '>', $after)->orderBy('id')->limit(100)->get()
             : collect();
 
@@ -865,7 +865,7 @@ class Holler
 
     /**
      * A call as one person sees it: everyone else on it (`peers`, with seat, status
-     * and heartbeat), my seat, whether I joined or put it on hold, plus `peer`, `peer_held` and
+     * and heartbeat), my seat, whether I joined or put it on hold, plus `peer`, `peer_claimed` and
      * `peer_seen_ago` for the first peer, which is all a 1-on-1 client reads.
      *
      * @return array<string, mixed>
@@ -888,7 +888,7 @@ class Holler
             ...$people[$peer->user_id],
             'seat' => $peer->seat,
             'status' => $peer->status,
-            'held' => $peer->isHeld(),
+            'claimed' => $peer->isClaimed(),
             'seen_ago' => $peer->seenAgo(),
         ])->values();
         $first = $peers->first(fn (array $peer) => in_array($peer['status'], CallParticipant::LIVE, true)) ?? $peers->first();
@@ -901,14 +901,14 @@ class Holler
             'role' => $call->sideOf($me),
             'seat' => $mine?->seat,
             'joined' => $mine?->isJoined() ?? false,
-            // I stepped out of it (`hold()`); nothing to do with `held`, which is about windows.
+            // I stepped out of it (`hold()`).
             'on_hold' => $mine?->isOnHold() ?? false,
             'peers' => $peers->all(),
             'peer' => $first ? ['id' => $first['id'], 'name' => $first['name'], 'avatar' => $first['avatar']] : null,
             'answered_at' => $call->answered_at?->toIso8601String(),
-            // Another window of mine holds my side.
-            'held' => $mine !== null && $mine->isHeld() && $mine->tab !== $tab,
-            'peer_held' => $first['held'] ?? false,
+            // Another window of mine has claimed my side (a pop-out runs the call).
+            'claimed_elsewhere' => $mine !== null && $mine->isClaimed() && $mine->tab !== $tab,
+            'peer_claimed' => $first['claimed'] ?? false,
             'peer_seen_ago' => $first['seen_ago'] ?? null,
         ];
     }

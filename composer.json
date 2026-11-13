@@ -46,7 +46,8 @@
     "require-dev": {
         "laravel/pint": "^1.32",
         "orchestra/testbench": "^10.0 || ^11.0",
-        "pestphp/pest": "^4.7.8 || ^5.3.4"
+        "pestphp/pest": "^4.7.8 || ^5.3.4",
+        "pestphp/pest-plugin-browser": "^4.3 || ^5.2"
     },
     "suggest": {
         "packstub/filament-holler": "The same calls inside a Filament panel: a CallAction, a widget and a pop-out window drawn with Filament's components"
@@ -62,8 +63,9 @@
         }
     },
     "scripts": {
-        "test": "pest",
-        "test:filter": "pest --filter",
+        "test": "pest --testsuite=Feature",
+        "test:filter": "pest --testsuite=Feature --filter",
+        "test:browser": "pest --testsuite=Browser",
         "lint": "pint",
         "lint:test": "pint --test"
     },

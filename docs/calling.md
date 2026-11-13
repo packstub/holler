@@ -55,7 +55,7 @@ In a mesh each browser uploads its media once per other participant, and four pe
 
 ### Who can be found
 
-The search box asks `GET calls/people`, which answers with up to 8 people: the users of the guard whose `name` contains what was typed, without anyone `canCallUsing()` refuses, anyone already on the call, and anyone your rule keeps apart from someone on it. It looks through up to 200 matches for those 8, so colleagues are found even when most matches are people your rule refuses. Change the columns in `config/holler.php` (`search_columns`; they must exist on your users table): add `email` to find people by address too, where the people who may call each other may know each other's address, since a match tells the person typing what the column holds. Or answer the search yourself, where `$limit` is that 200 and a query narrowed to the people the caller may call keeps it quick:
+The search box asks `GET calls/people`, which answers with up to 8 people: the users of the guard whose `name` contains what was typed, without anyone `canCallUsing()` refuses, anyone already on the call, and anyone your rule keeps apart from someone on it. It looks through up to 200 matches for those 8, so colleagues are found even when most matches are people your rule refuses. Change the columns in `config/holler.php` (`search_columns`; a column your users table lacks is skipped, with a warning in the log): add `email` to find people by address too, where the people who may call each other may know each other's address, since a match tells the person typing what the column holds. Or answer the search yourself, where `$limit` is that 200 and a query narrowed to the people the caller may call keeps it quick:
 
 ```php
 app(AppContext::class)->searchUsersUsing(
@@ -128,7 +128,7 @@ $guest = new Participant('guest:'.$visitorId, 'Visitor on /checkout');
 
 $call = Holler::start($agent, $guest, kind: 'assist');
 Holler::answer($call, $guest->id, $tab);
-Holler::poll($guest->id, $after, $call->id, $tab, hold: true, kind: 'assist');
+Holler::poll($guest->id, $after, $call->id, $tab, claim: true, kind: 'assist');
 ```
 
 - A `Participant` has an id with a prefix and a colon (`guest:<uuid>`, up to 64 characters), a name and an optional avatar URL, stored on the call. The context is not asked about it: the code that created it has already decided.

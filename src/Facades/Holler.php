@@ -29,7 +29,7 @@ use Illuminate\Support\Facades\Facade;
  * @method static ?\Packstub\Holler\Models\CallSignal signal(\Packstub\Holler\Models\Call $call, string $fromUserId, string $type, array $payload, ?string $to = null)
  * @method static void expire(string $userId)
  * @method static void expireCalls(iterable $calls)
- * @method static array poll(string $me, int $after = 0, ?int $currentId = null, ?string $tab = null, bool $hold = false, ?string $kind = null)
+ * @method static array poll(string $me, int $after = 0, ?int $currentId = null, ?string $tab = null, bool $claim = false, ?string $kind = null)
  * @method static \Illuminate\Support\Collection openCallsOf(string $userId, ?string $scope = null)
  * @method static string scope()
  * @method static bool inScope(\Packstub\Holler\Models\Call $call, string $userId)

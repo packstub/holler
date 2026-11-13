@@ -2,10 +2,14 @@
 
 use Packstub\Holler\Models\Call;
 use Packstub\Holler\Models\CallParticipant;
+use Packstub\Holler\Tests\Browser\BrowserTestCase;
 use Packstub\Holler\Tests\Fixtures\User;
 use Packstub\Holler\Tests\TestCase;
 
 pest()->extend(TestCase::class)->in('Feature');
+pest()->extend(BrowserTestCase::class)->in('Browser');
+
+pest()->browser()->timeout(20_000);
 
 function user(string $name): User
 {

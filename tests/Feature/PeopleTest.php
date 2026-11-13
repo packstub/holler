@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Support\Facades\Log;
 use Packstub\Holler\AppContext;
 use Packstub\Holler\Models\Call;
 use Packstub\Holler\Tests\Fixtures\User;
@@ -72,6 +73,20 @@ it('takes the search from a closure, searches other columns, and can be turned o
     config()->set('holler.people_search', false);
 
     peopleAs($this->ion)->assertOk()->assertJsonCount(0, 'people');
+});
+
+it('skips a search column the users table lacks, with a warning, instead of failing', function (): void {
+    Log::spy();
+    config()->set('holler.search_columns', ['nickname', 'name']);
+
+    peopleAs($this->ion, ['q' => 'an'])->assertOk()->assertJsonCount(2, 'people')->assertJsonPath('people.0.name', 'Ana');
+
+    Log::shouldHaveReceived('warning')->withArgs(fn (string $message): bool => str_contains($message, 'nickname'))->atLeast()->once();
+
+    // Nothing left to search by: nobody, still not an error.
+    config()->set('holler.search_columns', ['nickname']);
+
+    peopleAs($this->ion, ['q' => 'an'])->assertOk()->assertJsonCount(0, 'people');
 });
 
 it('shows a handful of people at most, and nobody to a visitor', function (): void {

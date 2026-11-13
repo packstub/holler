@@ -158,8 +158,8 @@ class CallsController
 
     /**
      * The one request every window repeats: a call ringing me, the call I am on
-     * (held by this window from then on when it asks to `hold` it, which is also
-     * its heartbeat), and the signals sent to me since `after`.
+     * (claimed by this window from then on when it asks to `claim` it, which is
+     * also its heartbeat), and the signals sent to me since `after`.
      */
     public function poll(Request $request): JsonResponse
     {
@@ -169,7 +169,7 @@ class CallsController
             currentId: (int) $request->query('call', 0) ?: null,
             tab: substr((string) $request->query('tab', ''), 0, 32) ?: null,
             // Only a window that runs the connection takes the side; a tab showing the chip just watches.
-            hold: $request->boolean('hold'),
+            claim: $request->boolean('claim'),
             kind: preg_match('/^[a-z0-9_-]{1,16}$/', (string) $request->query('kind', '')) ? (string) $request->query('kind') : null,
         ));
     }

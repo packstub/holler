@@ -90,7 +90,7 @@ it('lets me ring someone else while a call is on hold, and keeps the held call',
 
     answerAs($this->mihai, $second, 'mihai-1')->assertOk();
 
-    $this->actingAs($this->ion)->getJson(callsRoute('poll', ['call' => $second->id, 'tab' => 'ion-1', 'hold' => 1]))
+    $this->actingAs($this->ion)->getJson(callsRoute('poll', ['call' => $second->id, 'tab' => 'ion-1', 'claim' => 1]))
         ->assertJsonPath('call.id', $second->id)
         ->assertJsonPath('on_hold.id', $first->id);
 
@@ -117,7 +117,7 @@ it('swaps the calls when I resume the one on hold', function (): void {
 
     Event::assertDispatched(ParticipantResumed::class);
 
-    $this->actingAs($this->ion)->getJson(callsRoute('poll', ['call' => $first->id, 'tab' => 'ion-2', 'hold' => 1]))
+    $this->actingAs($this->ion)->getJson(callsRoute('poll', ['call' => $first->id, 'tab' => 'ion-2', 'claim' => 1]))
         ->assertJsonPath('call.id', $first->id)
         ->assertJsonPath('on_hold.id', $second->id);
 

@@ -101,7 +101,7 @@ They land in `lang/vendor/holler/en/ui.php` (the widget) and `messages.php` (the
 
 ## Your own markup
 
-The widget renders eight views from template functions: `incoming` (the toast), `chip`, `window`, `tile` (one per other participant), `person` (one per person the search found), `held` (the bar of a call on hold), `prompt` (the question when Call is pressed during a call) and `notice`. Each is rendered once when it appears and kept current through a few `data-holler-*` hooks: `text`, `show`, `class`, `attr`, `src`, `video` and `action`. Pass in your own markup and keep whichever hooks you need. Templates are functions, so they cannot come through a Blade attribute; set them from a script:
+The widget renders eight views from template functions: `incoming` (the toast), `chip`, `window`, `tile` (one per person who answered; someone added to a running call shows as a Ringing line over the stage until then), `person` (one per person the search found), `held` (the bar of a call on hold), `prompt` (the question when Call is pressed during a call) and `notice`. Each is rendered once when it appears and kept current through a few `data-holler-*` hooks: `text`, `show`, `class`, `attr`, `src`, `video` and `action`. Pass in your own markup and keep whichever hooks you need. Templates are functions, so they cannot come through a Blade attribute; set them from a script:
 
 ```blade
 <x-holler::widget :options="['startPolling' => false]" />

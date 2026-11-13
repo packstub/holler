@@ -37,7 +37,7 @@ class Call extends Model
     public const ENDED = 'ended';
 
     /** Seconds without a poll after which a window no longer counts as holding its side. */
-    public const HOLD_SECONDS = 5;
+    public const CLAIM_SECONDS = 5;
 
     protected $guarded = [];
 

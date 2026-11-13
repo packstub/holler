@@ -42,7 +42,7 @@ jobs:
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
         with:
           php-version: ${{ matrix.php }}
-          extensions: pdo_sqlite
+          extensions: pdo_sqlite, sockets
           coverage: none
 
       - name: Get Composer cache directory
@@ -66,4 +66,36 @@ jobs:
         run: vendor/bin/pint --test
 
       - name: Run tests
-        run: vendor/bin/pest
+        run: vendor/bin/pest --testsuite=Feature
+
+  browser:
+    name: Browser (the plain widget in Chromium, Pest)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        with:
+          php-version: "8.4"
+          extensions: pdo_sqlite, sockets
+          coverage: none
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+
+      # Only Playwright is needed: the widget the tests load is the committed resources/dist, and
+      # @packstub/holler comes from a private repo this job has no key for.
+      - name: Install dependencies
+        run: |
+          composer install --prefer-dist --no-interaction --no-progress
+          npm pkg delete devDependencies.@packstub/holler
+          npm install --no-package-lock
+          npx playwright install --with-deps chromium
+
+      - name: Run the browser tests
+        run: vendor/bin/pest --testsuite=Browser
