@@ -8,7 +8,7 @@ Audio, video and screen-share calls between the users of a Laravel app, one on o
 - Browser side: [`@packstub/holler`](https://github.com/packstub/holler-js), served by this package
 - In a Filament panel: [Filament Holler](https://packstub.dev/docs/filament-holler), built on this package
 
-![Ion calls Ana from her row on the Team page, she answers, and the call window shows her video with his in the corner](https://raw.githubusercontent.com/packstub/art/main/filament-holler/docs/calls.gif)
+![Marco calls Ana from her row on the Team page, she answers, and the call window shows her video with his in the corner](https://raw.githubusercontent.com/packstub/art/main/filament-holler/docs/calls.gif)
 
 ## Features
 

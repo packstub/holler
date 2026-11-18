@@ -10,7 +10,7 @@
 
 Audio, video and screen-share calls between the users of a Laravel app, one on one or in small groups, peer to peer over WebRTC. The media goes straight from one browser to the other; Laravel handles who calls whom and relays the few signaling messages the browsers need to find each other. It all runs over plain HTTP polling, so there is no websocket server to run.
 
-![Ion calls Ana from her row on the Team page, she answers, and the call window shows her video with his in the corner](https://raw.githubusercontent.com/packstub/art/main/filament-holler/docs/calls.gif)
+![Marco calls Ana from her row on the Team page, she answers, and the call window shows her video with his in the corner](https://raw.githubusercontent.com/packstub/art/main/filament-holler/docs/calls.gif)
 
 <sub>Shown in a Filament panel with [Filament Holler](https://github.com/packstub/filament-holler). Without Filament, the same call runs on any page through `<x-holler::widget />` and `<x-holler::button />`.</sub>
 
