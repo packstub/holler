@@ -2,7 +2,7 @@
 
 All notable changes to `packstub/holler` are documented in this file.
 
-## Unreleased
+## 1.0.0 — 2026-11-18
 
 First release of Holler for Laravel: the signaling backend for WebRTC calls between the users of a Laravel app, 1-on-1 or in groups. The media goes browser to browser; Laravel decides who calls whom and relays the signaling over polled HTTP, no websockets. Requires Laravel 12.69+ or 13.30+.
 
