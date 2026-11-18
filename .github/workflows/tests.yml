@@ -88,14 +88,30 @@ jobs:
         with:
           node-version: "22"
 
-      # Only Playwright is needed: the widget the tests load is the committed resources/dist, and
-      # @packstub/holler comes from a private repo this job has no key for.
+      # The widget the tests load is the committed resources/dist; npm ci brings Playwright.
       - name: Install dependencies
         run: |
           composer install --prefer-dist --no-interaction --no-progress
-          npm pkg delete devDependencies.@packstub/holler
-          npm install --no-package-lock
+          npm ci
           npx playwright install --with-deps chromium
 
       - name: Run the browser tests
         run: vendor/bin/pest --testsuite=Browser
+
+  # The one check the main branch requires (Settings → Rules): green only when every job above is.
+  # A new job goes in `needs`, so the required name stays the same when the matrix changes.
+  tests-passed:
+    name: Tests passed
+    if: always()
+    needs: [tests, browser]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Fail unless every job succeeded
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Job results: $RESULTS"
+          for result in $RESULTS; do
+            [ "$result" = "success" ] || exit 1
+          done
